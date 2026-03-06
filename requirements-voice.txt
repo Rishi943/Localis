@@ -1,0 +1,24 @@
+# Voice support for Localis (optional — install separately)
+# pip install -r requirements-voice.txt
+#
+# STT: faster-whisper (runs on CPU or GPU; LOCALIS_WHISPER_DEVICE=cpu to avoid VRAM contention)
+faster-whisper>=1.0.0
+
+# TTS: Piper — install the CLI binary, not this Python package.
+# Download from: https://github.com/rhasspy/piper/releases
+# Place piper binary in PATH, then set LOCALIS_PIPER_MODEL in secret.env:
+#   LOCALIS_PIPER_MODEL=/path/to/en_US-lessac-medium.onnx
+#
+# Download voice models from:
+#   https://github.com/rhasspy/piper/blob/master/VOICES.md
+#   https://huggingface.co/rhasspy/piper-voices
+#
+# Example (Linux x86_64):
+#   wget https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz
+#   tar xf piper_linux_x86_64.tar.gz && sudo mv piper /usr/local/bin/
+#   wget https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx
+
+# Wakeword daemon (Phase 2 — not required for PTT):
+openwakeword==0.6.0
+websocket-client>=1.6.0  # dev: WS smoke test in voice_verify.sh
+sounddevice>=0.4.6
