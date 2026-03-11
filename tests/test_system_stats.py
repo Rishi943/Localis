@@ -21,6 +21,7 @@ def test_system_stats_returns_expected_fields(monkeypatch):
     assert "vram_total_gb" in data
     assert abs(data["cpu_pct"] - 34.2) < 0.01
     assert abs(data["ram_used_gb"] - 11.4) < 0.1
+    assert abs(data["ram_total_gb"] - 16.0) < 0.1
 
 def test_system_stats_vram_falls_back_to_zero(monkeypatch):
     """VRAM returns 0.0 when the NVML handle raises an exception."""

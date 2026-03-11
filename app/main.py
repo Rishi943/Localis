@@ -18,6 +18,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import sys
 
+import psutil
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
@@ -45,7 +46,6 @@ if (DATA_DIR / "secret.env").exists():
 else:
     load_dotenv(dotenv_path=PROJECT_ROOT / "secret.env")
 
-import psutil
 try:
     import pynvml as _pynvml
     _pynvml.nvmlInit()
@@ -370,6 +370,17 @@ async def _startup():
                 logger.warning("[System] No .gguf models found in 'models/' directory. Please add one.")
         except Exception as e:
             logger.error(f"[System] Auto-load failed: {e}")
+
+    psutil.cpu_percent(interval=None)  # warm up; first call always returns 0.0
+
+
+@app.on_event("shutdown")
+async def _shutdown():
+    if _NVML_OK:
+        try:
+            _pynvml.nvmlShutdown()
+        except Exception:
+            pass
 
 
 # ------------------------------
