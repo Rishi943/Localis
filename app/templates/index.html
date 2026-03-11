@@ -397,8 +397,10 @@
       </button>
     </div>
 
+    <div id="rsb-body" class="rsb-body">
+
     <!-- Section 1: LIGHTS -->
-    <div class="rsb-sec" id="rsb-lights-section">
+    <div class="rsb-sec" id="rsb-sec-lights">
       <div class="rsb-sec-lbl">
         <svg width="10" height="10"><use href="#ico-home"/></svg> Lights
       </div>
@@ -440,10 +442,24 @@
         <button class="rsb-sw" style="background:#ec4899" data-color="#ec4899"></button>
         <button class="rsb-sw" style="background:#ef4444" data-color="#ef4444"></button>
       </div>
+      <!-- Inline brightness slider — shown when brightness button is active -->
+      <div id="rsb-brightness-ctrl" class="rsb-slider-row hidden">
+        <span class="rsb-slider-lbl">0%</span>
+        <input type="range" id="rsb-brightness-slider" class="rsb-slider"
+               min="0" max="100" step="1" value="50">
+        <span class="rsb-slider-lbl">100%</span>
+      </div>
+      <!-- Inline kelvin slider — shown when kelvin button is active -->
+      <div id="rsb-kelvin-ctrl" class="rsb-slider-row hidden">
+        <span class="rsb-slider-lbl">1000K</span>
+        <input type="range" id="rsb-kelvin-slider" class="rsb-slider"
+               min="1000" max="6500" step="100" value="3000">
+        <span class="rsb-slider-lbl">6500K</span>
+      </div>
     </div>
 
     <!-- Section 2: MODEL -->
-    <div class="rsb-sec">
+    <div class="rsb-sec" id="rsb-sec-model">
       <div class="rsb-sec-lbl">
         <svg width="10" height="10"><use href="#ico-model"/></svg> Model
       </div>
@@ -452,15 +468,22 @@
           <div id="rsb-model-name" class="rsb-model-name">No model loaded</div>
           <div id="rsb-model-status" class="rsb-model-st offline">● OFFLINE</div>
         </div>
-        <span class="rsb-model-arr">▾</span>
       </div>
-      <div id="rsb-model-chips" class="rsb-model-chips">
-        <!-- Populated by JS from /models -->
+      <div id="rsb-model-list" class="rsb-model-list">
+        <!-- Populated by rsbModel.init() from state.availableModels -->
+      </div>
+      <div class="rsb-model-actions">
+        <button id="rsb-btn-load-model" class="rsb-action-btn rsb-action-primary" disabled>
+          Load
+        </button>
+        <button id="rsb-btn-unload-model" class="rsb-action-btn rsb-action-danger" disabled>
+          Unload
+        </button>
       </div>
     </div>
 
     <!-- Section 3: SYSTEM PROMPT -->
-    <div class="rsb-sec">
+    <div class="rsb-sec" id="rsb-sec-prompt">
       <div class="rsb-sec-lbl">System Prompt</div>
       <div id="rsb-prompt-presets" class="rsb-presets">
         <button class="rsb-pchip active" data-preset="default">Default</button>
@@ -474,7 +497,7 @@
     </div>
 
     <!-- Section 4: SYSTEM STATS -->
-    <div class="rsb-sec">
+    <div class="rsb-sec" id="rsb-sec-stats">
       <div class="rsb-sec-lbl">System</div>
       <div class="rsb-stats">
         <div class="rsb-scard">
@@ -496,7 +519,7 @@
     </div>
 
     <!-- Section 5: CONTEXT WINDOW -->
-    <div class="rsb-sec rsb-sec-last">
+    <div class="rsb-sec rsb-sec-last" id="rsb-sec-ctx">
       <div class="rsb-sec-lbl">Context Window</div>
       <div class="rsb-ctx">
         <div id="rsb-ctx-ascii" class="rsb-ctx-ascii">░░░░░░░░░░░░░░░░░░░░</div>
@@ -507,23 +530,28 @@
       </div>
     </div>
 
+    </div><!-- /rsb-body -->
+
     <!-- Collapsed icon rail (shown when sidebar is collapsed) -->
     <div id="right-rail" class="rsb-rail hidden">
       <button class="toggle-btn" id="right-rail-toggle" aria-label="Expand sidebar">
         <svg width="12" height="12"><use href="#ico-left"/></svg>
       </button>
-      <div class="rsb-rail-icon" title="Model">
-        <svg width="15" height="15"><use href="#ico-model"/></svg>
-      </div>
-      <div class="rsb-rail-icon" title="Temperature">
-        <svg width="15" height="15"><use href="#ico-temp"/></svg>
-      </div>
-      <div class="rsb-rail-icon" title="Memory">
-        <svg width="15" height="15"><use href="#ico-memory"/></svg>
-      </div>
-      <div class="rsb-rail-icon" title="Settings">
-        <svg width="15" height="15"><use href="#ico-settings"/></svg>
-      </div>
+      <button class="rsb-rail-icon" data-section="rsb-sec-lights" title="Lights">
+        <svg width="16" height="16"><use href="#ico-home"/></svg>
+      </button>
+      <button class="rsb-rail-icon" data-section="rsb-sec-model" title="Model">
+        <svg width="16" height="16"><use href="#ico-model"/></svg>
+      </button>
+      <button class="rsb-rail-icon" data-section="rsb-sec-prompt" title="System Prompt">
+        <svg width="16" height="16"><use href="#ico-settings"/></svg>
+      </button>
+      <button class="rsb-rail-icon" data-section="rsb-sec-stats" title="System">
+        <svg width="16" height="16"><use href="#ico-temp"/></svg>
+      </button>
+      <button class="rsb-rail-icon" data-section="rsb-sec-ctx" title="Context Window">
+        <svg width="16" height="16"><use href="#ico-memory"/></svg>
+      </button>
     </div>
 
   </div><!-- /right-sidebar -->
