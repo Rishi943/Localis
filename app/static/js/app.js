@@ -1584,6 +1584,7 @@ const els = {
     rsbCtxTokens:    document.getElementById('rsb-ctx-tokens'),
     rsbCtxPct:       document.getElementById('rsb-ctx-pct'),
     modalProfileTags:      document.getElementById('modal-profile-tags'),
+    modalSystemPrompt:     document.getElementById('system-prompt-modal-editor'),
     btnEditPromptSidebar:  document.getElementById('btn-edit-prompt-sidebar'),
     leftSidebarToggle:     document.getElementById('left-sidebar-toggle'),
     rightSidebarToggle:    document.getElementById('right-sidebar-toggle'),
@@ -2629,6 +2630,27 @@ const rsbStats = (() => {
 
   return { start, stop, updateContextBar, addChars };
 })();
+
+// Right sidebar system prompt preset chips
+document.querySelectorAll('#rsb-prompt-presets .rsb-pchip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('#rsb-prompt-presets .rsb-pchip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    const PRESETS = {
+      default:   '',
+      creative:  'You are Jarvis, a creative AI assistant. Embrace imaginative thinking, explore unconventional angles, and write with personality and flair.',
+      code:      'You are Jarvis, a coding assistant. Provide working, minimal, idiomatic code. Explain only when the logic is non-obvious.',
+      precise:   'You are Jarvis, a precise AI assistant. Prioritise factual accuracy. Cite uncertainty. Avoid speculation. Be concise.',
+    };
+    const preset = chip.dataset.preset;
+    if (preset in PRESETS) {
+      if (els.modalSystemPrompt) {
+        els.modalSystemPrompt.value = PRESETS[preset];
+      }
+      api.saveSystemPrompt?.();
+    }
+  });
+});
 
 const ragUI = {
     currentFiles: [],
@@ -4759,15 +4781,52 @@ function openSystemPromptModal() {
     lengthDisplay.textContent = currentPrompt.length;
     modal.classList.remove('hidden');
     editor.focus();
+    populateModalProfileTags();
 }
 
 function closeSystemPromptModal() {
     document.getElementById('system-prompt-modal').classList.add('hidden');
 }
 
+function populateModalProfileTags() {
+  if (!els.modalProfileTags) return;
+
+  const PROFILES = {
+    '🏠 Home Control': 'You are Jarvis, a smart home AI assistant. Prioritise interpreting commands as home control actions. Confirm device actions clearly.',
+    'हि Hinglish': 'You are Jarvis. Respond naturally in the same language the user writes in — mix Hindi and English freely (Hinglish). Be conversational and warm.',
+    '🌙 Night Owl': 'You are Jarvis. Keep responses brief and low-key. The user is likely relaxing or winding down — match that energy.',
+    '⚡ Tech Mode': 'You are Jarvis, a technical AI assistant. Prioritise accuracy, include relevant details, use correct terminology. Assume the user is technically capable.',
+    '💻 Coding': 'You are Jarvis, a coding assistant. Provide working code with concise explanations. Prefer minimal, idiomatic solutions.',
+  };
+
+  const tags = Object.keys(PROFILES);
+
+  els.modalProfileTags.innerHTML = '';
+  tags.forEach(label => {
+    const btn = document.createElement('button');
+    btn.className = 'modal-profile-tag';
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      els.modalProfileTags.querySelectorAll('.modal-profile-tag').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      // Use the cached textarea ref instead of getElementById
+      if (els.modalSystemPrompt) {
+        els.modalSystemPrompt.value = PROFILES[label];
+        els.modalSystemPrompt.dispatchEvent(new Event('input'));
+      }
+    });
+    els.modalProfileTags.appendChild(btn);
+  });
+}
+
 // Open modal button
 const btnOpenPromptModal = document.getElementById('btn-open-prompt-modal');
 if (btnOpenPromptModal) btnOpenPromptModal.addEventListener('click', openSystemPromptModal);
+
+// Wire sidebar "Edit System Prompt" button to existing modal open function
+if (els.btnEditPromptSidebar) {
+  els.btnEditPromptSidebar.addEventListener('click', openSystemPromptModal);
+}
 
 // Close: × button
 const btnClosePromptModal = document.getElementById('btn-close-prompt-modal');
