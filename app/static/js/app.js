@@ -2507,6 +2507,26 @@ const modePills = (() => {
   if (lBtn) lBtn.addEventListener('click', toggleLeft);
   if (rBtn) rBtn.addEventListener('click', toggleRight);
   if (rRailBtn) rRailBtn.addEventListener('click', toggleRight);
+
+  // Rail icons → expand sidebar AND scroll to target section
+  document.querySelectorAll('.rsb-rail-icon').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sectionId = btn.dataset.section;
+      if (!sectionId) return;
+      // Reuse existing toggleRight() to expand — it handles icon swap + rail hide
+      if (rsb && rsb.classList.contains('collapsed')) {
+        toggleRight();
+      }
+      // Scroll after transition completes (~200ms)
+      setTimeout(() => {
+        const section = document.getElementById(sectionId);
+        const body = document.getElementById('rsb-body');
+        if (section && body) {
+          section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 220);
+    });
+  });
 })();
 
 // ── rsbLights — Right sidebar lights control (direct HA API) ─────────────────
@@ -2802,21 +2822,25 @@ const rsbStats = (() => {
 // Right sidebar system prompt preset chips
 document.querySelectorAll('#rsb-prompt-presets .rsb-pchip').forEach(chip => {
   chip.addEventListener('click', () => {
-    document.querySelectorAll('#rsb-prompt-presets .rsb-pchip').forEach(c => c.classList.remove('active'));
-    chip.classList.add('active');
     const PRESETS = {
-      default:   '',
-      creative:  'You are Jarvis, a creative AI assistant. Embrace imaginative thinking, explore unconventional angles, and write with personality and flair.',
-      code:      'You are Jarvis, a coding assistant. Provide working, minimal, idiomatic code. Explain only when the logic is non-obvious.',
-      precise:   'You are Jarvis, a precise AI assistant. Prioritise factual accuracy. Cite uncertainty. Avoid speculation. Be concise.',
+      default:  '',
+      creative: 'You are Jarvis, a creative AI assistant. Embrace imaginative thinking, explore unconventional angles, and write with personality and flair.',
+      code:     'You are Jarvis, a coding assistant. Provide working, minimal, idiomatic code. Explain only when the logic is non-obvious.',
+      precise:  'You are Jarvis, a precise AI assistant. Prioritise factual accuracy. Cite uncertainty. Avoid speculation. Be concise.',
     };
     const preset = chip.dataset.preset;
-    if (preset in PRESETS) {
-      const val = PRESETS[preset];
-      if (els.systemPromptEditor) els.systemPromptEditor.value = val;
-      if (els.modalSystemPrompt) els.modalSystemPrompt.value = val;
-      api.saveSystemPrompt?.();
-    }
+    if (!(preset in PRESETS)) return;
+
+    // Activate this chip; deactivate modal tags (sidebar presets ≠ profile tags)
+    document.querySelectorAll('#rsb-prompt-presets .rsb-pchip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    document.querySelectorAll('#modal-profile-tags .modal-profile-tag').forEach(b => b.classList.remove('active'));
+    _activeProfileLabel = null;
+
+    const val = PRESETS[preset];
+    if (els.systemPromptEditor) els.systemPromptEditor.value = val;
+    if (els.modalSystemPrompt)  els.modalSystemPrompt.value = val;
+    api.saveSystemPrompt?.();
   });
 });
 
@@ -5011,6 +5035,28 @@ function closeSystemPromptModal() {
     document.getElementById('system-prompt-modal').classList.add('hidden');
 }
 
+// Shared active profile state — syncs sidebar preset chips ↔ modal profile tags
+let _activeProfileLabel = null;
+
+function setActiveProfile(label, promptText) {
+  _activeProfileLabel = label;
+
+  // Update modal tags
+  document.querySelectorAll('#modal-profile-tags .modal-profile-tag').forEach(b => {
+    b.classList.toggle('active', b.textContent.trim() === label);
+  });
+
+  // Deactivate all sidebar preset chips when a profile tag is chosen
+  document.querySelectorAll('#rsb-prompt-presets .rsb-pchip').forEach(c => c.classList.remove('active'));
+
+  // Apply prompt text
+  if (promptText !== undefined) {
+    if (els.modalSystemPrompt)  els.modalSystemPrompt.value = promptText;
+    if (els.systemPromptEditor) els.systemPromptEditor.value = promptText;
+    api.saveSystemPrompt?.();
+  }
+}
+
 function populateModalProfileTags() {
   if (!els.modalProfileTags) return;
 
@@ -5030,13 +5076,8 @@ function populateModalProfileTags() {
     btn.className = 'modal-profile-tag';
     btn.textContent = label;
     btn.addEventListener('click', () => {
-      els.modalProfileTags.querySelectorAll('.modal-profile-tag').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      // Use the cached textarea ref instead of getElementById
-      if (els.modalSystemPrompt) {
-        els.modalSystemPrompt.value = PROFILES[label];
-        els.modalSystemPrompt.dispatchEvent(new Event('input'));
-      }
+      setActiveProfile(label, PROFILES[label]);
+      if (els.modalSystemPrompt) els.modalSystemPrompt.dispatchEvent(new Event('input'));
     });
     els.modalProfileTags.appendChild(btn);
   });
