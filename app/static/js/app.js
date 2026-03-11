@@ -6227,6 +6227,12 @@ const startApp = async () => {
     }
 
 
+    // Sync DB tutorial_completed to localStorage so a returning user with cleared
+    // localStorage doesn't get re-shown the tutorial.
+    if (appState.tutorial_completed) {
+        markFirstRunComplete();
+    }
+
     if (isFirstRun()) {
         Logger.debug('App', 'First run detected, entering tutorial');
         enterFirstRunStep1();
@@ -6271,12 +6277,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnBegin = document.getElementById('btn-begin');
     if (btnBegin) {
-        console.log('Begin button found, attaching listener');
-        btnBegin.addEventListener('click', () => {
-            console.log('Begin button clicked!');
-            startApp();
-        });
-    } else {
-        console.error('Begin button NOT found in DOM!');
+        btnBegin.addEventListener('click', () => startApp());
+    }
+
+    // Auto-start if tutorial already completed (skips boot screen for returning users)
+    if (!isFirstRun()) {
+        startApp();
     }
 });

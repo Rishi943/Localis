@@ -48,3 +48,6 @@ voices/
 
 # Git worktrees
 .worktrees/
+
+# Brainstorm session files
+.superpowers/
