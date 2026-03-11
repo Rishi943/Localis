@@ -45,6 +45,14 @@ if (DATA_DIR / "secret.env").exists():
 else:
     load_dotenv(dotenv_path=PROJECT_ROOT / "secret.env")
 
+import psutil
+try:
+    import pynvml as _pynvml
+    _pynvml.nvmlInit()
+    _NVML_OK = True
+except Exception:
+    _NVML_OK = False
+
 # --- Now safe to import local modules (env vars are set) ---
 from .setup_wizard import register_setup_wizard
 from .updater import register_updater
@@ -1847,4 +1855,35 @@ async def stop_server():
         "exported": exported,
         "log_path": str(export_path) if exported else None,
         "filename": export_filename if exported else None,
+    }
+
+
+# ------------------------------
+# Routes: System Stats
+# ------------------------------
+@app.get("/api/system-stats")
+async def system_stats():
+    """Return current CPU, RAM, and VRAM usage for the sidebar stats panel."""
+    cpu_pct = psutil.cpu_percent(interval=None)
+    mem = psutil.virtual_memory()
+    ram_used_gb = round(mem.used / 1e9, 1)
+    ram_total_gb = round(mem.total / 1e9, 1)
+
+    vram_used_gb = 0.0
+    vram_total_gb = 0.0
+    if _NVML_OK:
+        try:
+            handle = _pynvml.nvmlDeviceGetHandleByIndex(0)
+            info = _pynvml.nvmlDeviceGetMemoryInfo(handle)
+            vram_used_gb = round(info.used / 1e9, 1)
+            vram_total_gb = round(info.total / 1e9, 1)
+        except Exception:
+            pass
+
+    return {
+        "cpu_pct": cpu_pct,
+        "ram_used_gb": ram_used_gb,
+        "ram_total_gb": ram_total_gb,
+        "vram_used_gb": vram_used_gb,
+        "vram_total_gb": vram_total_gb,
     }

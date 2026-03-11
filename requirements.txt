@@ -17,3 +17,6 @@ chromadb
 # RAG extraction deps (needed by app/rag_processing.py)
 pypdf
 python-docx
+
+psutil
+pynvml
