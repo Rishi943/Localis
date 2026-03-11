@@ -12,7 +12,7 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Request, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,13 @@ class _BrightnessReq(BaseModel):
 
 class _ColorReq(BaseModel):
     rgb: list[int] = Field(..., min_length=3, max_length=3)
+
+    @field_validator("rgb")
+    @classmethod
+    def validate_channels(cls, v: list[int]) -> list[int]:
+        if not all(0 <= c <= 255 for c in v):
+            raise ValueError("Each RGB channel must be in 0-255")
+        return v
 
 class _KelvinReq(BaseModel):
     kelvin: int = Field(..., ge=1000, le=10000)

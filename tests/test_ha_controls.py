@@ -21,9 +21,12 @@ def test_light_toggle():
     assert r.json()['status'] == 'ok'
 
 def test_light_brightness():
+    import app.assist as assist_mod
     r = client.post('/assist/light/brightness', json={'value': 60})
     assert r.status_code == 200
     assert r.json()['status'] == 'ok'
+    call_data = assist_mod.ha_call_service.call_args
+    assert call_data[0][2]['brightness'] == round(60 / 100 * 255)  # 153
 
 def test_light_brightness_out_of_range():
     r = client.post('/assist/light/brightness', json={'value': 150})
@@ -44,3 +47,7 @@ def test_controls_503_when_ha_not_configured(monkeypatch):
     monkeypatch.setattr(assist_mod, '_ha_url', '')
     r = client.post('/assist/light/toggle')
     assert r.status_code == 503
+
+def test_light_color_invalid_channels():
+    r = client.post('/assist/light/color', json={'rgb': [999, -1, 0]})
+    assert r.status_code == 422
