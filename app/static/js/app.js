@@ -2216,7 +2216,7 @@ const toolsUI = {
         if (!chatHistory) return null;
 
         const msgDiv = document.createElement('div');
-        msgDiv.classList.add('message', 'ai-msg');
+        msgDiv.classList.add('msg-row', 'ai');
         msgDiv.dataset.statusMessage = 'true';
 
         const contentDiv = document.createElement('div');
@@ -3428,8 +3428,8 @@ function buildMessageHTML(role, text) {
         <div class="msg-row ${isUser ? 'user' : 'ai'}">
           <div class="msg-avatar ${isUser ? 'user' : 'ai'}">${initial}</div>
           <div class="msg-body">
-            <div class="msg-name">${displayName}</div>
-            <div class="msg-text">${text}</div>
+            <div class="msg-name">${escapeHtml(displayName)}</div>
+            <div class="msg-text">${escapeHtml(text)}</div>
           </div>
         </div>`;
 }
@@ -3441,8 +3441,8 @@ function buildActionCardHTML(type, title, subtitle) {
         <div class="action-card ${cardClass}">
           <svg width="16" height="16" style="flex-shrink:0"><use href="#${iconId}"/></svg>
           <div>
-            <div class="action-card-title">${title}</div>
-            <div class="action-card-sub">${subtitle}</div>
+            <div class="action-card-title">${escapeHtml(title)}</div>
+            <div class="action-card-sub">${escapeHtml(subtitle)}</div>
           </div>
         </div>`;
 }
