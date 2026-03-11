@@ -2500,6 +2500,74 @@ const modePills = (() => {
   if (rRailBtn) rRailBtn.addEventListener('click', toggleRight);
 })();
 
+// ── rsbLights — Right sidebar lights control ─────────────────────────────────
+const rsbLights = (() => {
+  let _pollTimer = null;
+
+  function _msSince(isoStr) {
+    if (!isoStr) return '';
+    const diff = Math.round((Date.now() - new Date(isoStr).getTime()) / 1000);
+    if (diff < 60)  return `${diff} seconds ago`;
+    if (diff < 3600) return `${Math.round(diff/60)} minutes ago`;
+    return `${Math.round(diff/3600)} hours ago`;
+  }
+
+  async function _refresh() {
+    try {
+      const data = await fetch('/assist/light_state').then(r => r.json());
+      if (data.error) { _showUnavailable(); return; }
+
+      const pct = data.brightness_pct ?? 0;
+      const isOn = data.state === 'on';
+
+      if (els.rsbLightsPct) els.rsbLightsPct.textContent = isOn ? `${pct}%` : 'Off';
+      if (els.rsbLightsAgo) els.rsbLightsAgo.textContent = _msSince(data.last_changed);
+
+      // Bulb fill
+      if (els.rsbBulbFill) els.rsbBulbFill.style.height = isOn ? `${pct}%` : '0%';
+      if (els.rsbBulbLine) els.rsbBulbLine.style.bottom = `calc(${isOn ? pct : 0}% + 5px)`;
+
+      // Toggle state
+      const toggle = els.rsbLightsToggle;
+      if (toggle) toggle.classList.toggle('on', isOn);
+    } catch (_) {
+      _showUnavailable();
+    }
+  }
+
+  function _showUnavailable() {
+    if (els.rsbLightsPct) els.rsbLightsPct.textContent = '—';
+    if (els.rsbLightsAgo) els.rsbLightsAgo.textContent = 'HA unavailable';
+  }
+
+  function start() {
+    _refresh();
+    _pollTimer = setInterval(_refresh, 5000);
+  }
+
+  function stop() {
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+  }
+
+  return { start, stop };
+})();
+
+if (els.rsbLightsToggle) {
+  els.rsbLightsToggle.addEventListener('click', async () => {
+    try {
+      await fetch('/assist/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: 'toggle the light',
+          session_id: state.sessionId || 'sidebar',
+        }),
+      });
+      setTimeout(() => rsbLights._refresh?.(), 600);
+    } catch (_) {}
+  });
+}
+
 const ragUI = {
     currentFiles: [],
     ready: false,
@@ -5781,6 +5849,7 @@ const startApp = async () => {
     // Initialize Tools Picker
     toolsUI.init();
     modePills.init();  // Wire mode pill toggles after toolsUI is ready
+    rsbLights.start();
 
     // Initialize Voice UI (async, non-blocking — shows mic if /voice/status available)
     voiceUI.init().catch(e => Logger.debug('Voice', `init error: ${e}`));
