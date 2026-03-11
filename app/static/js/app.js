@@ -2644,9 +2644,9 @@ document.querySelectorAll('#rsb-prompt-presets .rsb-pchip').forEach(chip => {
     };
     const preset = chip.dataset.preset;
     if (preset in PRESETS) {
-      if (els.modalSystemPrompt) {
-        els.modalSystemPrompt.value = PRESETS[preset];
-      }
+      const val = PRESETS[preset];
+      if (els.systemPromptEditor) els.systemPromptEditor.value = val;
+      if (els.modalSystemPrompt) els.modalSystemPrompt.value = val;
       api.saveSystemPrompt?.();
     }
   });
