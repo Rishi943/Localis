@@ -1760,6 +1760,14 @@ if(elWall.btnRemove) elWall.btnRemove.addEventListener('click', async () => {
     } catch(e) {}
 });
 
+const wallpaperTrigger = document.getElementById('btn-wallpaper-upload-trigger');
+if (wallpaperTrigger) {
+  wallpaperTrigger.addEventListener('click', () => {
+    const input = document.getElementById('wallpaper-upload');
+    if (input) input.click();
+  });
+}
+
 const savedOpacity = localStorage.getItem('local_ai_wall_opacity') || 10;
 if(elWall.slider) elWall.slider.value = savedOpacity;
 updateWallpaperOpacity(savedOpacity);

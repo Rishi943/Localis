@@ -282,326 +282,337 @@
   </div>
 </div>
 
-<div class="app-container">
-    <div class="sidebar" id="sidebar">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div class="app-title">Local AI</div>
-        </div>
-        <button id="btn-new-chat" class="btn-new-chat"><span>+</span><span class="btn-label">New Chat</span></button>
-        <div class="session-list" id="session-list">
-            <div style="padding:10px; opacity:0.5; font-size:0.8rem;">Loading...</div>
-        </div>
+<div class="app-container app-shell">
 
-        <!-- NEW: Collapsed Setting Button (Rail Mode) -->
-        <button class="btn-open-settings-rail" id="btn-open-settings-rail" title="Settings">⚙️</button>
+  <!-- LEFT SIDEBAR -->
+  <div id="left-sidebar" class="lsb">
+    <div class="lsb-head">
+      <button id="left-sidebar-toggle" class="toggle-btn" aria-label="Collapse sidebar">
+        <svg width="12" height="12"><use href="#ico-left"/></svg>
+      </button>
+      <span class="lsb-title">Localis</span>
+    </div>
+    <button class="new-chat-btn" id="btn-new-chat">
+      <svg width="14" height="14"><use href="#ico-newchat"/></svg>
+      <span>New Chat</span>
+    </button>
+    <div id="session-list" class="sess-list">
+      <!-- Populated by JS -->
+    </div>
+    <div class="lsb-foot">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="model-status" class="status-txt">Offline</span>
+    </div>
+  </div>
 
-        <div class="sidebar-footer">
-            <button class="btn-icon-text" id="btn-open-settings-sidebar"><span>⚙️</span><span class="btn-label">Settings</span></button>
-            <div style="padding: 0 12px; font-size: 0.75rem; color: var(--text-secondary); display:flex; gap:8px; align-items:center;">
-                <div id="status-dot" class="status-indicator offline"></div>
-                <span id="conn-status">Disconnected</span>
-            </div>
-        </div>
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- TOP BAR -->
+    <div id="top-bar" class="top-bar">
+      <div class="online-dot"></div>
+      <span id="tb-model-name" class="tb-model">No model loaded</span>
+      <span id="session-title" class="tb-sess tb-session-name"></span>
+      <div class="tb-spacer"></div>
+      <button id="btn-top-settings" class="tb-btn" title="Settings">
+        <svg width="14" height="14"><use href="#ico-settings"/></svg>
+      </button>
     </div>
 
-    <div class="chat-area">
-        <div class="top-bar">
-            <div style="display:flex; align-items:center;">
-                <button id="btn-sidebar-toggle" class="btn-sidebar-toggle" title="Toggle Sidebar">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
-                </button>
-                <div id="model-display" class="model-badge">No Model Loaded</div>
-                <div id="prompt-swap-indicator" class="prompt-swap-indicator">System prompt updated</div>
-                <span class="top-bar-divider">|</span>
-                <div id="session-title" class="session-title">New Session</div>
-            </div>
-            <!-- Web search toggle removed - use tools picker instead -->
-            <div style="display:none;">
-                <button id="btn-search-toggle" class="btn-search-toggle">WEB SEARCH: OFF</button>
-            </div>
-        </div>
-
-        <div id="chat-history" class="chat-history">
-            <div class="welcome-container">
-                <h3 class="welcome-title">Welcome to Local AI</h3>
-                <p class="welcome-text">Private, GPU-accelerated intelligence.</p>
-                <button class="btn-full" style="width:auto; margin-top:20px; padding: 10px 24px;" onclick="toggleSettings(true)">Load Model</button>
-            </div>
-        </div>
-
-        <div class="input-wrapper">
-            <!-- Voice Status Bar -->
-            <div id="voice-status-bar" class="voice-status-bar hidden">
-                <div class="voice-status-dot"></div>
-                <span class="voice-status-label"></span>
-                <span class="voice-status-tag"></span>
-            </div>
-
-            <!-- Tools Chip Row (Shows selected tools) -->
-            <div id="tools-chip-row" class="tools-chip-row"></div>
-
-            <div class="input-container">
-                <div class="hat-decoration">
-                    <svg viewBox="0 0 100 80" xmlns="http://www.w3.org/2000/svg">
-                        <ellipse cx="50" cy="50" rx="45" ry="12" fill="#fcd34d" stroke="#d97706" stroke-width="2"/>
-                        <path d="M30,50 Q30,20 50,20 Q70,20 70,50" fill="#fcd34d" stroke="#d97706" stroke-width="2"/>
-                        <path d="M32,45 Q50,45 68,45 L68,50 Q50,50 32,50 Z" fill="#ef4444" stroke="#b91c1c" stroke-width="1"/>
-                    </svg>
-                </div>
-                <input type="file" id="from-file-input" multiple hidden accept=".pdf,.txt,.md,.docx,.csv,application/pdf,text/plain,text/markdown,text/csv,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
-                <button type="button" id="tools-picker-btn" class="tools-picker-btn" title="Tools" aria-label="Open tools picker" aria-haspopup="true" aria-expanded="false">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                </button>
-                <div id="tui-prefix">➜ ~</div>
-                <textarea id="prompt" rows="1" placeholder="Type a message..."></textarea>
-                <div class="input-actions">
-                    <!-- Voice: mic button (hidden until /voice/status confirms available) -->
-                    <button id="voice-mic-btn" class="voice-mic-btn" title="Hold to speak" aria-label="Push to talk" hidden>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                            <line x1="12" y1="19" x2="12" y2="23"></line>
-                            <line x1="8" y1="23" x2="16" y2="23"></line>
-                        </svg>
-                    </button>
-                    <!-- Wake word toggle (hidden until voice available) -->
-                    <button id="wakeword-toggle-btn" class="wakeword-toggle-btn"
-                            title="Wake word: OFF" aria-label="Toggle wake word" hidden>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                            <circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/>
-                        </svg>
-                        <span id="wakeword-state-label" class="wakeword-state-label"></span>
-                    </button>
-                    <button id="think-toggle" class="think-toggle-btn" title="Think mode: OFF">💭</button>
-                    <button id="send-btn">SEND</button>
-                </div>
-            </div>
-            <!-- Voice mode toggle pill (hidden until voice available) -->
-            <div id="voice-mode-toggle" class="voice-mode-pill" hidden>
-                <button class="voice-mode-opt active" data-mode="chat" aria-pressed="true">Chat</button>
-                <button class="voice-mode-opt" data-mode="ha" aria-pressed="false">Home</button>
-            </div>
-            <!-- Voice cancel bar (shown during confirming state) -->
-            <div id="voice-cancel-bar" class="voice-cancel-bar" hidden>
-                <div class="voice-cancel-progress"></div>
-                <span class="voice-cancel-label">Sending in <span id="voice-cancel-countdown">1</span>s…</span>
-                <button id="voice-cancel-btn" class="voice-cancel-x" aria-label="Cancel voice send">✕ Cancel</button>
-            </div>
-            <div style="text-align:center; font-size:0.75rem; color:var(--text-secondary); margin-top:12px; opacity:0.3;">Shift+Enter for newline</div>
-        </div>
+    <!-- CHAT ZONE -->
+    <div id="chat-zone" class="chat-zone">
+      <div id="chat-history" class="chat-inner">
+        <!-- Messages rendered by JS -->
+      </div>
     </div>
 
-    <!-- RIGHT RAIL (Collapsed Icon Menu) -->
-    <div id="right-rail" class="right-rail">
-        <button id="btn-rail-model" class="rail-btn" title="ModelSelection">◈</button>
-        <button id="btn-rail-temp" class="rail-btn" title="Temperature">⚡</button>
-        <button id="btn-rail-memory" class="rail-btn" title="Memory">💾</button>
-    </div>
+    <!-- INPUT ZONE -->
+    <div id="input-zone" class="input-zone">
+      <div class="input-inner">
 
-    <!-- Tools Picker Modal -->
-    <div id="tools-picker-modal" class="tools-picker-modal hidden" role="dialog" aria-modal="true" aria-labelledby="tools-picker-header">
-        <div class="tools-picker-content">
-            <div id="tools-picker-header" class="tools-picker-header">Tools</div>
-            <div class="tools-picker-list" role="menu">
-                <!-- From File (Upload and retrieve) -->
-                <button class="tool-option" data-tool="from_file" role="menuitem" aria-label="Upload and index files">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-                        <polyline points="13 2 13 9 20 9"></polyline>
-                    </svg>
-                    <span>From File</span>
-                </button>
-
-                <!-- Search Web -->
-                <div class="tool-option-wrapper">
-                    <button class="tool-option" data-tool="web_search" role="menuitemcheckbox" aria-label="Search the web" aria-checked="false">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <circle cx="11" cy="11" r="8"></circle>
-                            <path d="m21 21-4.35-4.35"></path>
-                        </svg>
-                        <span>Search Web</span>
-                    </button>
-                    <div class="tool-config hidden" data-config-for="web_search">
-                        <label class="tool-config-label">
-                            Custom query (optional):
-                            <input type="text" id="web-search-query" placeholder="Leave blank to use your message" class="tool-config-input">
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Remember -->
-                <div class="tool-option-wrapper">
-                    <button class="tool-option" data-tool="memory_write" role="menuitemcheckbox" aria-label="Remember information" aria-checked="false">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-                            <polyline points="17 21 17 13 7 13 7 21"></polyline>
-                            <polyline points="7 3 7 8 15 8"></polyline>
-                        </svg>
-                        <span>Remember</span>
-                    </button>
-                    <div class="tool-config hidden" data-config-for="memory_write">
-                        <label class="tool-config-label">
-                            Key:
-                            <input type="text" id="memory-key" placeholder="e.g., interests, projects" value="misc" class="tool-config-input">
-                        </label>
-                        <label class="tool-config-label">
-                            Value:
-                            <textarea id="memory-value" placeholder="What to remember (leave blank to use your message)" rows="2" class="tool-config-textarea"></textarea>
-                        </label>
-                        <label class="tool-config-label">
-                            Tier:
-                            <select id="memory-tier" class="tool-config-select">
-                                <option value="tier_b">Extended Memory (Tier B)</option>
-                                <option value="tier_a">Core Identity (Tier A)</option>
-                            </select>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Home Control (Assist Mode) -->
-                <div class="tool-option-wrapper">
-                    <button class="tool-option" data-tool="assist_mode" role="menuitemcheckbox" aria-label="Control smart home devices" aria-checked="false">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                        </svg>
-                        <span>Home Control</span>
-                    </button>
-                </div>
-            </div>
+        <!-- Voice status bar — PRESERVE STRUCTURE -->
+        <div id="voice-status-bar" class="voice-status-bar hidden">
+          <div class="voice-status-dot"></div>
+          <span class="voice-status-label"></span>
+          <span class="voice-status-tag"></span>
         </div>
-    </div>
-</div>
 
-<!-- RIGHT SIDEBAR (Replaces Settings Overlay) -->
-<div id="right-sidebar">
+        <!-- Mode pills (replaces tools-chip-row) -->
+        <div id="mode-pills" class="mode-pills">
+          <button id="pill-web"      class="mode-pill" data-tool="web_search">
+            <svg width="11" height="11"><use href="#ico-web"/></svg> Web
+          </button>
+          <button id="pill-home"     class="mode-pill" data-tool="assist_mode">
+            <svg width="11" height="11"><use href="#ico-home"/></svg> Home
+          </button>
+          <button id="pill-upload"   class="mode-pill" data-tool="rag_upload">
+            <svg width="11" height="11"><use href="#ico-file"/></svg> Upload
+          </button>
+          <button id="pill-remember" class="mode-pill" data-tool="memory_write">
+            <svg width="11" height="11"><use href="#ico-memory"/></svg> Remember
+          </button>
+        </div>
+
+        <!-- Input row -->
+        <div class="input-row">
+          <!-- Hidden file input — preserve original ID -->
+          <input type="file" id="from-file-input" multiple hidden accept=".pdf,.txt,.md,.docx,.csv,application/pdf,text/plain,text/markdown,text/csv,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+          <!-- Voice mic — preserve original ID -->
+          <button id="voice-mic-btn" class="voice-mic-btn" title="Hold to speak" aria-label="Push to talk" hidden>
+            <svg width="14" height="14"><use href="#ico-voice"/></svg>
+          </button>
+          <!-- Wakeword toggle — preserve original ID -->
+          <button id="wakeword-toggle-btn" class="wakeword-toggle-btn" title="Wake word: OFF" aria-label="Toggle wake word" hidden>
+            <svg width="14" height="14"><use href="#ico-voice"/></svg>
+            <span id="wakeword-state-label" class="wakeword-state-label"></span>
+          </button>
+          <textarea id="prompt" rows="1" placeholder="Message Jarvis…" autocomplete="off"></textarea>
+          <button id="send-btn" class="send-btn">SEND</button>
+        </div>
+
+        <!-- Voice mode toggle pill (hidden until voice available) -->
+        <div id="voice-mode-toggle" class="voice-mode-pill" hidden>
+          <button class="voice-mode-opt active" data-mode="chat" aria-pressed="true">Chat</button>
+          <button class="voice-mode-opt" data-mode="ha" aria-pressed="false">Home</button>
+        </div>
+        <!-- Voice cancel bar (shown during confirming state) -->
+        <div id="voice-cancel-bar" class="voice-cancel-bar" hidden>
+          <div class="voice-cancel-progress"></div>
+          <span class="voice-cancel-label">Sending in <span id="voice-cancel-countdown">1</span>s…</span>
+          <button id="voice-cancel-btn" class="voice-cancel-x" aria-label="Cancel voice send">✕ Cancel</button>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /main -->
+
+  <!-- RIGHT SIDEBAR (shell + quick-controls — Task 5 will fill the rail) -->
+  <div id="right-sidebar" class="rsb">
+
+    <!-- Settings panel content (preserved from old #right-sidebar) -->
     <div class="settings-header">
-        <h2>Configuration</h2>
-        <button class="btn-close" id="btn-close-settings">&times;</button>
+      <h2>Configuration</h2>
+      <button class="btn-close" id="btn-close-settings">&times;</button>
     </div>
 
     <div class="settings-content">
-        <div class="setting-group" id="grp-model">
-            <label>Model Selection</label>
-            <select id="model-select"><option>Scanning...</option></select>
-            <!-- MODEL METADATA DISPLAY -->
-            <div id="model-metadata-display">
-                <!-- Populated via JS -->
-            </div>
-            <!-- Button container with Load Model + Folder Icon -->
-            <div class="btn-row">
-                <button type="button" id="btn-load" class="btn-primary">LOAD MODEL</button>
-                <button type="button" id="btn-open-models-dir" class="btn-icon" title="Open models folder">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                    </svg>
-                </button>
-            </div>
-            <button type="button" id="btn-unload" class="btn-full" style="margin-top:8px; background:var(--bg-dark); border:1px solid var(--border-subtle); color:var(--text-secondary);">UNLOAD MODEL</button>
-            <div id="model-status" class="model-status-text">STATUS: OFFLINE</div>
+      <div class="setting-group" id="grp-model">
+        <label>Model Selection</label>
+        <select id="model-select"><option>Scanning...</option></select>
+        <!-- MODEL METADATA DISPLAY -->
+        <div id="model-metadata-display">
+          <!-- Populated via JS -->
         </div>
-
-
-        <!-- SYSTEM PROMPT EDITOR -->
-        <div class="setting-group" id="grp-system-prompt">
-            <label>System Prompt</label>
-            <button type="button" id="btn-open-prompt-modal" class="btn-full">Edit System Prompt</button>
-        </div>
-        <!-- Hidden textarea for compatibility -->
-        <div style="display:none;">
-            <textarea id="system-prompt-editor"></textarea>
-            <div id="prompt-status"></div>
-        </div>
-
-
-        <!-- MEMORY MATRIX CONTAINER (NEW) -->
-        <div id="memory-matrix-container" style="display:none;">
-            <div class="setting-group">
-                <label style="color:#60A5FA;">Memory Matrix</label>
-                <div class="memory-scope-info">
-                    <strong>Memory Scope:</strong> Your identity and learned facts are shared globally across all sessions. Only messages are session-specific.
-                </div>
-                <div class="mem-section" id="mem-tier-a">
-                    <div class="mem-title">Identity (Tier A)</div>
-                    <!-- JS populated -->
-                    <div style="font-style:italic; color:rgba(255,255,255,0.2); font-size:0.75rem;">Empty</div>
-                </div>
-                <div class="mem-section" id="mem-tier-b">
-                    <div class="mem-title">Interests (Tier B)</div>
-                    <div class="mem-tag-container" id="mem-tier-b-tags">
-                        <div style="font-style:italic; color:rgba(255,255,255,0.2); font-size:0.75rem;">Empty</div>
-                    </div>
-                </div>
-                <button id="btn-refresh-memory" class="btn-full" style="margin-top:12px;">Refresh Memory</button>
-            </div>
-            </div>
-
-        <!-- WEB UPLINK CONTAINER (NEW) -->
-        <div id="web-uplink-container" style="display:none;">
-            <div class="setting-group">
-                <label style="color:#A78BFA;">Web Uplink</label>
-                <div class="mem-section">
-                    <div class="mem-kv"><span class="mem-k">Mode</span> <span class="mem-v" id="disp-web-mode">OFF</span></div>
-                    <div class="mem-kv"><span class="mem-k">Provider</span> <span class="mem-v" id="disp-web-provider">AUTO</span></div>
-                </div>
-            </div>
-            </div>
-
-        <div class="setting-group" id="grp-wallpaper">
-            <label>Wallpaper</label>
-            <div style="display:flex; gap:10px; align-items:center;">
-                <input type="file" id="wallpaper-upload" accept="image/png, image/jpeg" style="display:none;">
-                <button class="btn-full" onclick="document.getElementById('wallpaper-upload').click()">Upload Image</button>
-                <button id="btn-remove-wallpaper" class="btn-full" style="background:#EF4444; color:white; width:auto; padding: 14px 18px;">✖</button>
-            </div>
-
-            <div style="margin-top:12px;">
-                <div class="row-spread"><label>Opacity</label><span id="val-opacity">10%</span></div>
-                <input type="range" id="slider-opacity" min="0" max="100" value="10">
-            </div>
-        </div>
-
-
-        <div class="setting-group" id="grp-gpu">
-            <div class="row-spread"><label>GPU Layers</label><input type="number" id="num-layers" value="35" min="0" max="99" style="width:70px;"></div>
-            <input type="range" id="slider-layers" min="0" max="99" value="35">
-        </div>
-
-        <div class="setting-group" id="grp-ctx">
-            <div class="row-spread"><label>Context Size (n_ctx)</label><input type="number" id="num-ctx" value="4096" step="512" style="width:80px;"></div>
-            <input type="range" id="slider-ctx" min="512" max="32768" step="512" value="4096">
-        </div>
-
-        <div class="setting-group" id="grp-temp">
-            <div class="row-spread"><label>Temperature</label><input type="number" id="num-temp" value="0.7" step="0.1" max="2.0" style="width:60px;"></div>
-            <input type="range" id="slider-temp" min="0" max="20" value="7">
-        </div>
-
-        <!-- NEW: ACCENT COLOR -->
-        <div class="setting-group" id="grp-accent">
-            <div class="row-spread"><label>Accent Color</label><input type="color" id="picker-accent" value="#ffffff" style="width:60px; height:30px; padding:0; border:none; background:none;"></div>
-        </div>
-
-
-        <!-- DEV BUTTON (Temporary Reset Tutorial Button) -->
-        <div class="setting-group" style="display:none;">
-            <button id="btn-reset-tutorial" class="btn-full" style="background:#EF4444; color:white; font-size:0.8rem; margin-top: 10px;">[DEV] RESET TUTORIAL</button>
-        </div>
-
-        <div class="setting-group" id="grp-server-control">
-          <label>Server</label>
-          <button type="button" id="btn-stop-server" class="btn-full btn-danger">
-            Stop Server &amp; Export Logs
+        <!-- Button container with Load Model + Folder Icon -->
+        <div class="btn-row">
+          <button type="button" id="btn-load" class="btn-primary">LOAD MODEL</button>
+          <button type="button" id="btn-open-models-dir" class="btn-icon" title="Open models folder">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
           </button>
-          <p id="stop-server-status" class="setting-hint" style="display:none;"></p>
         </div>
+        <button type="button" id="btn-unload" class="btn-full" style="margin-top:8px; background:var(--bg-dark); border:1px solid var(--border-subtle); color:var(--text-secondary);">UNLOAD MODEL</button>
+        <!-- model-status preserved here for JS compat; also in lsb-foot above -->
+        <div id="model-status-sidebar" class="model-status-text">STATUS: OFFLINE</div>
+      </div>
+
+      <!-- SYSTEM PROMPT EDITOR -->
+      <div class="setting-group" id="grp-system-prompt">
+        <label>System Prompt</label>
+        <button type="button" id="btn-open-prompt-modal" class="btn-full">Edit System Prompt</button>
+      </div>
+      <!-- Hidden textarea for compatibility -->
+      <div style="display:none;">
+        <textarea id="system-prompt-editor"></textarea>
+        <div id="prompt-status"></div>
+      </div>
+
+      <!-- MEMORY MATRIX CONTAINER -->
+      <div id="memory-matrix-container" style="display:none;">
+        <div class="setting-group">
+          <label style="color:#60A5FA;">Memory Matrix</label>
+          <div class="memory-scope-info">
+            <strong>Memory Scope:</strong> Your identity and learned facts are shared globally across all sessions. Only messages are session-specific.
+          </div>
+          <div class="mem-section" id="mem-tier-a">
+            <div class="mem-title">Identity (Tier A)</div>
+            <!-- JS populated -->
+            <div style="font-style:italic; color:rgba(255,255,255,0.2); font-size:0.75rem;">Empty</div>
+          </div>
+          <div class="mem-section" id="mem-tier-b">
+            <div class="mem-title">Interests (Tier B)</div>
+            <div class="mem-tag-container" id="mem-tier-b-tags">
+              <div style="font-style:italic; color:rgba(255,255,255,0.2); font-size:0.75rem;">Empty</div>
+            </div>
+          </div>
+          <button id="btn-refresh-memory" class="btn-full" style="margin-top:12px;">Refresh Memory</button>
+        </div>
+      </div>
+
+      <!-- WEB UPLINK CONTAINER -->
+      <div id="web-uplink-container" style="display:none;">
+        <div class="setting-group">
+          <label style="color:#A78BFA;">Web Uplink</label>
+          <div class="mem-section">
+            <div class="mem-kv"><span class="mem-k">Mode</span> <span class="mem-v" id="disp-web-mode">OFF</span></div>
+            <div class="mem-kv"><span class="mem-k">Provider</span> <span class="mem-v" id="disp-web-provider">AUTO</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="setting-group" id="grp-wallpaper">
+        <label>Wallpaper</label>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input type="file" id="wallpaper-upload" accept="image/png, image/jpeg" style="display:none;">
+          <button class="btn-full" id="btn-wallpaper-upload-trigger">Upload Image</button>
+          <button id="btn-remove-wallpaper" class="btn-full" style="background:#EF4444; color:white; width:auto; padding: 14px 18px;">✖</button>
+        </div>
+        <div style="margin-top:12px;">
+          <div class="row-spread"><label>Opacity</label><span id="val-opacity">10%</span></div>
+          <input type="range" id="slider-opacity" min="0" max="100" value="10">
+        </div>
+      </div>
+
+      <div class="setting-group" id="grp-gpu">
+        <div class="row-spread"><label>GPU Layers</label><input type="number" id="num-layers" value="35" min="0" max="99" style="width:70px;"></div>
+        <input type="range" id="slider-layers" min="0" max="99" value="35">
+      </div>
+
+      <div class="setting-group" id="grp-ctx">
+        <div class="row-spread"><label>Context Size (n_ctx)</label><input type="number" id="num-ctx" value="4096" step="512" style="width:80px;"></div>
+        <input type="range" id="slider-ctx" min="512" max="32768" step="512" value="4096">
+      </div>
+
+      <div class="setting-group" id="grp-temp">
+        <div class="row-spread"><label>Temperature</label><input type="number" id="num-temp" value="0.7" step="0.1" max="2.0" style="width:60px;"></div>
+        <input type="range" id="slider-temp" min="0" max="20" value="7">
+      </div>
+
+      <!-- ACCENT COLOR -->
+      <div class="setting-group" id="grp-accent">
+        <div class="row-spread"><label>Accent Color</label><input type="color" id="picker-accent" value="#ffffff" style="width:60px; height:30px; padding:0; border:none; background:none;"></div>
+      </div>
+
+      <!-- DEV BUTTON (Temporary Reset Tutorial Button) -->
+      <div class="setting-group" style="display:none;">
+        <button id="btn-reset-tutorial" class="btn-full" style="background:#EF4444; color:white; font-size:0.8rem; margin-top: 10px;">[DEV] RESET TUTORIAL</button>
+      </div>
+
+      <div class="setting-group" id="grp-server-control">
+        <label>Server</label>
+        <button type="button" id="btn-stop-server" class="btn-full btn-danger">
+          Stop Server &amp; Export Logs
+        </button>
+        <p id="stop-server-status" class="setting-hint" style="display:none;"></p>
+      </div>
     </div>
+
+    <!-- Right rail collapsed icon menu (Task 5 will populate) -->
+    <div id="right-rail" class="rsb-rail hidden">
+      <!-- Will be populated in Task 5 -->
+    </div>
+
+  </div><!-- /right-sidebar -->
+
+  <!-- Tools Picker Modal (preserved from old structure) -->
+  <div id="tools-picker-modal" class="tools-picker-modal hidden" role="dialog" aria-modal="true" aria-labelledby="tools-picker-header">
+    <div class="tools-picker-content">
+      <div id="tools-picker-header" class="tools-picker-header">Tools</div>
+      <div class="tools-picker-list" role="menu">
+        <!-- From File (Upload and retrieve) -->
+        <button class="tool-option" data-tool="from_file" role="menuitem" aria-label="Upload and index files">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+            <polyline points="13 2 13 9 20 9"></polyline>
+          </svg>
+          <span>From File</span>
+        </button>
+
+        <!-- Search Web -->
+        <div class="tool-option-wrapper">
+          <button class="tool-option" data-tool="web_search" role="menuitemcheckbox" aria-label="Search the web" aria-checked="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="m21 21-4.35-4.35"></path>
+            </svg>
+            <span>Search Web</span>
+          </button>
+          <div class="tool-config hidden" data-config-for="web_search">
+            <label class="tool-config-label">
+              Custom query (optional):
+              <input type="text" id="web-search-query" placeholder="Leave blank to use your message" class="tool-config-input">
+            </label>
+          </div>
+        </div>
+
+        <!-- Remember -->
+        <div class="tool-option-wrapper">
+          <button class="tool-option" data-tool="memory_write" role="menuitemcheckbox" aria-label="Remember information" aria-checked="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            <span>Remember</span>
+          </button>
+          <div class="tool-config hidden" data-config-for="memory_write">
+            <label class="tool-config-label">
+              Key:
+              <input type="text" id="memory-key" placeholder="e.g., interests, projects" value="misc" class="tool-config-input">
+            </label>
+            <label class="tool-config-label">
+              Value:
+              <textarea id="memory-value" placeholder="What to remember (leave blank to use your message)" rows="2" class="tool-config-textarea"></textarea>
+            </label>
+            <label class="tool-config-label">
+              Tier:
+              <select id="memory-tier" class="tool-config-select">
+                <option value="tier_b">Extended Memory (Tier B)</option>
+                <option value="tier_a">Core Identity (Tier A)</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <!-- Home Control (Assist Mode) -->
+        <div class="tool-option-wrapper">
+          <button class="tool-option" data-tool="assist_mode" role="menuitemcheckbox" aria-label="Control smart home devices" aria-checked="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+              <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+            <span>Home Control</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden compatibility elements -->
+  <div style="display:none;">
+    <!-- Old IDs needed by JS but removed from visible layout -->
+    <div id="sidebar"></div>
+    <button id="btn-sidebar-toggle"></button>
+    <div id="model-display"></div>
+    <div id="prompt-swap-indicator"></div>
+    <span id="conn-status"></span>
+    <button id="btn-search-toggle"></button>
+    <div id="tools-chip-row"></div>
+    <button id="tools-picker-btn"></button>
+    <div id="tui-prefix"></div>
+    <button id="think-toggle"></button>
+    <button id="btn-open-settings-sidebar"></button>
+    <button id="btn-open-settings-rail"></button>
+    <button id="btn-rail-model"></button>
+    <button id="btn-rail-temp"></button>
+    <button id="btn-rail-memory"></button>
+    <button id="btn-save-prompt"></button>
+    <button id="btn-reset-prompt"></button>
+    <button id="btn-right-sidebar-toggle"></button>
+  </div>
+
 </div>
 
 <script defer src="/static/js/setup_wizard.js"></script>
