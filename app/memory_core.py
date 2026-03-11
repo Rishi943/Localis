@@ -16,6 +16,7 @@ TIER-A (Identity): Core profile (preferred_name, location, timezone, language_pr
 TIER-B (Extended): Auto-learned facts, interests, projects, preferences
 """
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 import re
@@ -26,6 +27,8 @@ from typing import Dict, List, Optional, Set, Literal, Any, Union, Tuple
 
 from . import database
 
+logger = logging.getLogger(__name__)
+
 # --- SOFT DEPENDENCY CHECK ---
 try:
     import numpy as np
@@ -33,7 +36,7 @@ try:
 except ImportError:
     np = None
     NUMPY_AVAILABLE = False
-    print("[MEMORY_CORE] Warning: 'numpy' not found. Vector memory disabled.")
+    logger.warning("[Memory] 'numpy' not found. Vector memory disabled.")
 
 # --- RETRIEVAL CACHE ---
 _retrieval_cache: Dict[str, Tuple[str, float]] = {}
@@ -129,7 +132,7 @@ def get_embedder():
 
             # Auto-detect device
             device = "cuda" if torch.cuda.is_available() else "cpu"
-            print(f"[MEMORY_CORE] Loading embedding model {EMBEDDING_MODEL_NAME} on {device.upper()}...")
+            logger.info(f"[Memory] Loading embedding model {EMBEDDING_MODEL_NAME} on {device.upper()}...")
 
             _EMBEDDER = SentenceTransformer(EMBEDDING_MODEL_NAME, device=device)
 
@@ -137,15 +140,15 @@ def get_embedder():
             if device == "cuda":
                 try:
                     _EMBEDDER.half()
-                    print(f"[MEMORY_CORE] Enabled FP16 mode for GPU acceleration")
+                    logger.info("[Memory] Enabled FP16 mode for GPU acceleration")
                 except Exception as e:
-                    print(f"[MEMORY_CORE] Warning: Could not enable FP16: {e}")
+                    logger.warning(f"[Memory] Could not enable FP16: {e}")
 
         except ImportError:
-            print("[MEMORY_CORE] Warning: 'sentence-transformers' not found. Vector memory disabled.")
+            logger.warning("[Memory] 'sentence-transformers' not found. Vector memory disabled.")
             return None
         except Exception as e:
-            print(f"[MEMORY_CORE] Error loading model: {e}")
+            logger.error(f"[Memory] Error loading embedding model: {e}")
             return None
     return _EMBEDDER
 
@@ -160,7 +163,7 @@ def embed_text(text: str) -> Optional[List[float]]:
         vec = model.encode(text, normalize_embeddings=True, convert_to_numpy=True)
         return vec.tolist()
     except Exception as e:
-        print(f"[MEMORY_CORE] Embed error: {e}")
+        logger.error(f"[Memory] Embed error: {e}")
         return None
 
 
@@ -181,10 +184,9 @@ def unpack_embedding(blob: bytes) -> Any:
 # ------------------------------------------------------------------------------
 def log_event(event: str, payload: dict, session_id: Optional[str] = None) -> None:
     try:
-        # print(f"[MEMORY_CORE] {event} | {payload.get('key', '')} {payload.get('reason', '')}")
         database.add_memory_event(event, payload, session_id)
     except Exception as e:
-        print(f"[MEMORY_CORE] Log error: {e}")
+        logger.error(f"[Memory] Log error: {e}")
 
 
 def normalize_identity_value(key: str, value: str) -> str:
@@ -393,11 +395,11 @@ def tool_memory_retrieve(query: str, session_id: str = None, k: int = 8) -> str:
     if cache_key_str in _retrieval_cache:
         result, timestamp = _retrieval_cache[cache_key_str]
         if (current_time - timestamp) < RETRIEVAL_CACHE_TTL:
-            print(f"[Memory] Cache HIT for query: {query[:50]}")
+            logger.debug(f"[Memory] Cache HIT for query: {query[:50]}")
             return result
 
     # Cache miss - generate result
-    print(f"[Memory] Cache MISS for query: {query[:50]}")
+    logger.debug(f"[Memory] Cache MISS for query: {query[:50]}")
     result = _do_memory_retrieve(query, session_id, k)
 
     # Update cache

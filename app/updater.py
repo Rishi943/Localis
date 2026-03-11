@@ -1,6 +1,7 @@
 # app/updater.py
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 from pathlib import Path
@@ -11,6 +12,8 @@ from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/update", tags=["update"])
+
+logger = logging.getLogger(__name__)
 
 # Cache for git executable path
 _GIT_EXE: Optional[str] = None
@@ -29,13 +32,13 @@ def _get_git_exe() -> str:
 
         # Validate absolute paths - if specified path doesn't exist, fall back to 'git'
         if git_path != 'git' and not Path(git_path).exists():
-            print(f"[UPDATER] Warning: LOCALIS_GIT_EXE points to non-existent path: {git_path}")
-            print("[UPDATER] Falling back to system 'git'")
+            logger.warning(f"[Updater] LOCALIS_GIT_EXE points to non-existent path: {git_path}")
+            logger.warning("[Updater] Falling back to system 'git'")
             _GIT_EXE = 'git'
         else:
             _GIT_EXE = git_path
             if git_path != 'git':
-                print(f"[UPDATER] Using bundled git: {git_path}")
+                logger.info(f"[Updater] Using bundled git: {git_path}")
 
     return _GIT_EXE
 
@@ -59,7 +62,7 @@ def _git_available() -> bool:
         subprocess.run([git_exe, "--version"], capture_output=True, text=True, check=True)
         return True
     except Exception as e:
-        print(f"[UPDATER] Git not available: {e}")
+        logger.warning(f"[Updater] Git not available: {e}")
         return False
 
 

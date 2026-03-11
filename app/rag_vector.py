@@ -4,12 +4,15 @@ RAG vector indexing: embed chunks, store in Chroma, query vectors.
 """
 from __future__ import annotations
 
+import logging
 import re
 import json
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
 from . import memory_core
+
+logger = logging.getLogger(__name__)
 
 
 # Batch size for embedding to reduce memory spikes
@@ -327,7 +330,7 @@ def query(
         matches = [m for m in matches if m["distance"] < RAG_DISTANCE_THRESHOLD]
         filtered_count = pre_filter_count - len(matches)
         if filtered_count > 0:
-            print(f" [RAG] Filtered {filtered_count}/{pre_filter_count} matches above distance threshold {RAG_DISTANCE_THRESHOLD}")
+            logger.debug(f"[RAG] Filtered {filtered_count}/{pre_filter_count} matches above distance threshold {RAG_DISTANCE_THRESHOLD}")
 
         # Deterministic ordering: sort by distance (asc), then chunk_id (asc)
         matches.sort(key=lambda x: (x["distance"], x["chunk_id"]))

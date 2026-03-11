@@ -16,15 +16,42 @@ from typing import Union, List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+import sys
+
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+
+# --- Resolve DATA_DIR and load secret.env FIRST, before any local imports ---
+# Local modules (voice.py, wakeword.py, assist.py) evaluate env-var constants at
+# import time, so dotenv must be loaded before those imports run.
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parent
+
+def _default_data_dir() -> Path:
+    # Persistent, writeable location for DB/models/static
+    if sys.platform.startswith("win"):
+        base = os.getenv("LOCALAPPDATA") or os.getenv("APPDATA") or str(Path.home())
+        return Path(base) / "Localis"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "Localis"
+    base = os.getenv("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+    return Path(base) / "localis"
+
+DATA_DIR = Path(os.getenv("LOCALIS_DATA_DIR") or _default_data_dir())
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+if (DATA_DIR / "secret.env").exists():
+    load_dotenv(dotenv_path=DATA_DIR / "secret.env")
+else:
+    load_dotenv(dotenv_path=PROJECT_ROOT / "secret.env")
+
+# --- Now safe to import local modules (env vars are set) ---
 from .setup_wizard import register_setup_wizard
 from .updater import register_updater
 from .rag import register_rag
 from .assist import register_assist
 from .voice import register_voice
 from .wakeword import register_wakeword
-import sys  # add this near the top with imports
 
 
 # ------------------------------
@@ -42,27 +69,7 @@ from llama_cpp import Llama
 # Configuration
 # ------------------------------
 
-BASE_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = BASE_DIR.parent  # repo root in dev; temp bundle root when frozen
-
-def _default_data_dir() -> Path:
-    # Persistent, writeable location for DB/models/static
-    if sys.platform.startswith("win"):
-        base = os.getenv("LOCALAPPDATA") or os.getenv("APPDATA") or str(Path.home())
-        return Path(base) / "Localis"
-    if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / "Localis"
-    base = os.getenv("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
-    return Path(base) / "localis"
-
-DATA_DIR = Path(os.getenv("LOCALIS_DATA_DIR") or _default_data_dir())
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-# Load env overrides if present (optional)
-if (DATA_DIR / "secret.env").exists():
-    load_dotenv(dotenv_path=DATA_DIR / "secret.env")
-else:
-    load_dotenv(dotenv_path=PROJECT_ROOT / "secret.env")
+# (DATA_DIR and load_dotenv already resolved at top of file, before local imports)
 
 # Debug configuration
 def parse_bool_env(name: str, default: bool = False) -> bool:
@@ -76,11 +83,38 @@ def parse_bool_env(name: str, default: bool = False) -> bool:
 
 DEBUG = parse_bool_env("LOCALIS_DEBUG", False)
 
-# Setup logging
-logging.basicConfig(
-    level=logging.DEBUG if DEBUG else logging.WARNING,
-    format="[%(levelname)s] %(message)s"
+# --- Logging setup ---
+import logging.handlers as _logging_handlers
+
+_LOG_DIR = DATA_DIR / "logs"
+_LOG_DIR.mkdir(parents=True, exist_ok=True)
+_LOG_FILE = _LOG_DIR / "localis.log"
+
+_fmt = logging.Formatter("[%(levelname)s] %(message)s")
+_file_fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s",
+                               datefmt="%Y-%m-%d %H:%M:%S")
+
+_stream_handler = logging.StreamHandler()
+_stream_handler.setFormatter(_fmt)
+
+_file_handler = _logging_handlers.RotatingFileHandler(
+    _LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=3, encoding="utf-8"
 )
+_file_handler.setFormatter(_file_fmt)
+
+_root = logging.getLogger()
+_root.setLevel(logging.DEBUG if DEBUG else logging.INFO)
+_root.addHandler(_stream_handler)
+_root.addHandler(_file_handler)
+
+# Silence chatty third-party loggers
+for _lib in ("httpx", "httpcore", "multipart", "hpack", "urllib3",
+             "sentence_transformers", "transformers", "huggingface_hub",
+             "chromadb", "uvicorn.access",
+             "wsproto", "websockets", "websockets.server",
+             "websockets.client", "websockets.protocol"):
+    logging.getLogger(_lib).setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 # Persist DB in user data dir (NOT next to the exe)
@@ -161,14 +195,13 @@ def _load_model_internal(model_name: str, n_gpu_layers: int, n_ctx: int):
 
     # Unload existing to free VRAM
     if current_model:
-        print(" [System] Unloading previous model...")
+        logger.info("[System] Unloading previous model...")
         # Call close() if available for cleaner shutdown
         if hasattr(current_model, 'close'):
             try:
                 current_model.close()
             except Exception as e:
-                if DEBUG:
-                    print(f" [System] Model close() failed: {e}")
+                logger.debug(f"[System] Model close() failed: {e}")
         del current_model
         gc.collect()
 
@@ -190,14 +223,14 @@ def _load_model_internal(model_name: str, n_gpu_layers: int, n_ctx: int):
     use_offload_kqv = (n_gpu_layers > 0 and gpu_available)
 
     # Log performance parameters
-    print(f" [System] Loading {model_name}")
-    print(f"   GPU Layers: {n_gpu_layers}")
-    print(f"   Context: {n_ctx}")
-    print(f"   Batch Size: {n_batch}")
-    print(f"   Physical Batch: {n_ubatch}")
-    print(f"   Threads: {n_threads}")
-    print(f"   Flash Attention: {use_flash_attn}")
-    print(f"   Offload KQV: {use_offload_kqv}")
+    logger.info(f"[System] Loading {model_name}")
+    logger.info(f"  GPU Layers: {n_gpu_layers}")
+    logger.info(f"  Context: {n_ctx}")
+    logger.info(f"  Batch Size: {n_batch}")
+    logger.info(f"  Physical Batch: {n_ubatch}")
+    logger.info(f"  Threads: {n_threads}")
+    logger.info(f"  Flash Attention: {use_flash_attn}")
+    logger.info(f"  Offload KQV: {use_offload_kqv}")
 
     current_model = Llama(
         model_path=str(path),
@@ -213,20 +246,20 @@ def _load_model_internal(model_name: str, n_gpu_layers: int, n_ctx: int):
     current_model_name = model_name
 
     # Verify GPU usage after loading
-    print(f" [System] Model loaded successfully")
+    logger.info("[System] Model loaded successfully")
 
     if n_gpu_layers > 0:
         if gpu_available:
-            print(f" [System] GPU offload active ({n_gpu_layers} layers)")
+            logger.info(f"[System] GPU offload active ({n_gpu_layers} layers)")
             try:
                 import torch
-                print(f" [System] ✓ CUDA: {torch.cuda.get_device_name(0)}")
-                print(f" [System] ✓ VRAM: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
+                logger.info(f"[System] CUDA: {torch.cuda.get_device_name(0)}")
+                logger.info(f"[System] VRAM: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
             except Exception:
                 pass
         else:
-            print(f" [System] ✗ WARNING: GPU offload requested but no CUDA backend available!")
-            print(f" [System] ✗ Model will run on CPU only (slower performance)")
+            logger.warning("[System] WARNING: GPU offload requested but no CUDA backend available!")
+            logger.warning("[System] Model will run on CPU only (slower performance)")
 
     return current_model_name
 
@@ -250,27 +283,32 @@ register_wakeword(app, DATA_DIR)
 
 @app.on_event("startup")
 async def _startup():
-    print(" [System] Initializing database...")
+    # Re-silence protocol loggers in case uvicorn's dictConfig reset them
+    for _proto_lib in ("wsproto", "websockets", "websockets.server",
+                       "websockets.client", "websockets.protocol"):
+        logging.getLogger(_proto_lib).setLevel(logging.WARNING)
+
+    logger.info("[System] Initializing database...")
     database.init_db()
 
     # Preload/warm embeddings at startup to avoid first-use latency.
     try:
-        print(" [System] Preloading embedding model...")
+        logger.info("[System] Preloading embedding model...")
         emb = memory_core.get_embedder()
         if emb:
             try:
                 memory_core.embed_text("warmup")
             except Exception:
                 pass
-            print(" [System] Embedding model ready.")
+            logger.info("[System] Embedding model ready.")
         else:
-            print(" [System] Embedding model unavailable (missing deps or load failure).")
+            logger.warning("[System] Embedding model unavailable (missing deps or load failure).")
     except Exception as e:
-        print(f" [System] Embedding preload failed (continuing without embeddings): {e}")
+        logger.warning(f"[System] Embedding preload failed (continuing without embeddings): {e}")
 
     # Ensure models directory exists
     if not MODELS_DIR.exists():
-        print(f" [System] Creating models directory at: {MODELS_DIR}")
+        logger.info(f"[System] Creating models directory at: {MODELS_DIR}")
         MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
     # Auto-load logic
@@ -296,7 +334,7 @@ async def _startup():
         n_ctx = 4096
 
     if not tutorial_completed:
-        print(" [System] First run detected (tutorial incomplete). Skipping model auto-load.")
+        logger.info("[System] First run detected (tutorial incomplete). Skipping model auto-load.")
     else:
         try:
             models = sorted(list(MODELS_DIR.glob("*.gguf")))
@@ -308,22 +346,22 @@ async def _startup():
                     for m in models:
                         if m.name == default_model_name:
                             target_model = m.name
-                            print(f" [System] Found preferred default model: {target_model}")
+                            logger.info(f"[System] Found preferred default model: {target_model}")
                             break
                     if not target_model:
-                        print(f" [System] Default model '{default_model_name}' not found. Falling back.")
+                        logger.warning(f"[System] Default model '{default_model_name}' not found. Falling back.")
 
                 # 2. Fallback to First Available
                 if not target_model:
                     target_model = models[0].name
-                    print(f" [System] Auto-loading fallback model: {target_model}")
+                    logger.info(f"[System] Auto-loading fallback model: {target_model}")
 
                 _load_model_internal(target_model, n_gpu_layers=35, n_ctx=n_ctx)
-                print(" [System] Auto-load complete.")
+                logger.info("[System] Auto-load complete.")
             else:
-                print(" [System] No .gguf models found in 'models/' directory. Please add one.")
+                logger.warning("[System] No .gguf models found in 'models/' directory. Please add one.")
         except Exception as e:
-            print(f" [System] Auto-load failed: {e}")
+            logger.error(f"[System] Auto-load failed: {e}")
 
 
 # ------------------------------
@@ -477,7 +515,7 @@ async def load_model_route(req: ModelLoadRequest):
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Model file not found")
     except Exception as e:
-        print(f" [Error] Load failed: {e}")
+        logger.error(f"[System] Load failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -488,19 +526,18 @@ async def unload_model_route():
 
     with MODEL_LOCK:
         if current_model:
-            print(" [System] Unloading model...")
+            logger.info("[System] Unloading model...")
             # Call close() if available for cleaner shutdown
             if hasattr(current_model, 'close'):
                 try:
                     current_model.close()
                 except Exception as e:
-                    if DEBUG:
-                        print(f" [System] Model close() failed: {e}")
+                    logger.debug(f"[System] Model close() failed: {e}")
             del current_model
             current_model = None
             current_model_name = None
             gc.collect()
-            print(" [System] Model unloaded.")
+            logger.info("[System] Model unloaded.")
             return {"status": "ok", "message": "Model unloaded"}
         else:
             return {"status": "ok", "message": "No model was loaded"}
@@ -606,14 +643,14 @@ async def delete_session_endpoint(session_id: str):
             shutil.rmtree(session_rag_dir)
             rag_cleaned = True
     except Exception as e:
-        print(f" [Session Delete] RAG disk cleanup failed: {e}")
+        logger.warning(f"[Session Delete] RAG disk cleanup failed: {e}")
 
     # 3. Delete Chroma vectors
     try:
         rag_vector.delete_session_collection(session_id, DATA_DIR)
         rag_cleaned = True
     except Exception as e:
-        print(f" [Session Delete] Chroma cleanup failed: {e}")
+        logger.warning(f"[Session Delete] Chroma cleanup failed: {e}")
 
     if not db_deleted:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -834,10 +871,7 @@ async def debug_context_endpoint(
 # ------------------------------
 @app.post("/chat")
 async def chat_endpoint(req: ChatRequest):
-    print(f"\n[Chat] Session: {req.session_id[:12]}...")
-    print(f"[Chat] Think Mode: {req.think_mode}")
-    print(f"[Chat] Web Search: {req.web_search_mode}")
-    print(f"[Chat] Memory Mode: {req.memory_mode}")
+    logger.debug(f"[Chat] Session: {req.session_id[:12]}... think={req.think_mode} web={req.web_search_mode} mem={req.memory_mode}")
 
     # Assist Mode early-return — bypasses entire chat pipeline + big LLM
     if req.assist_mode:
@@ -999,7 +1033,7 @@ async def chat_endpoint(req: ChatRequest):
 
     # Execute tools if explicitly requested or auto-injected
     if effective_tool_actions:
-        print(f" [Chat] Tools requested: {[t.get('type') if isinstance(t, dict) else t for t in effective_tool_actions]}", flush=True)
+        logger.debug(f"[Chat] Tools requested: {[t.get('type') if isinstance(t, dict) else t for t in effective_tool_actions]}")
         # Validate and sanitize tool_actions
         ALLOWED_TOOLS = {"web_search", "rag_retrieve", "memory_write", "memory_retrieve"}
         validated_tools = []
@@ -1014,25 +1048,25 @@ async def chat_endpoint(req: ChatRequest):
                 tool_name = tool_action.get("type", "")
                 tool_config = tool_action.get("config", {})
             else:
-                print(f" [Tools] Invalid tool action format: {tool_action}")
+                logger.warning(f"[Tools] Invalid tool action format: {tool_action}")
                 continue
 
             # Deduplicate
             if tool_name in seen:
-                print(f" [Tools] Skipping duplicate: {tool_name}")
+                logger.debug(f"[Tools] Skipping duplicate: {tool_name}")
                 continue
             seen.add(tool_name)
 
             # Validate against allowed list
             if tool_name not in ALLOWED_TOOLS:
-                print(f" [Tools] Invalid tool name: {tool_name}")
+                logger.warning(f"[Tools] Invalid tool name: {tool_name}")
                 continue
 
             validated_tools.append({"name": tool_name, "config": tool_config})
 
         # Enforce max 3 tools
         if len(validated_tools) > 3:
-            print(f" [Tools] Too many tools requested ({len(validated_tools)}), limiting to 3")
+            logger.warning(f"[Tools] Too many tools requested ({len(validated_tools)}), limiting to 3")
             validated_tools = validated_tools[:3]
 
         # Structured logging: track execution
@@ -1122,7 +1156,7 @@ async def chat_endpoint(req: ChatRequest):
                             "content": f"[TOOL RESULT: rag_retrieve]\nRAG unavailable: {rag_unavailable_reason}"
                         }
                         result["error"] = rag_unavailable_reason
-                        print(f" [RAG] Not ready: {rag_unavailable_reason}", flush=True)
+                        logger.debug(f"[RAG] Not ready: {rag_unavailable_reason}")
                     else:
                         logger.info(f"RAG ready: {len(indexed_files)} files available")
                         top_k = tool_config.get("top_k", 4)
@@ -1201,17 +1235,17 @@ async def chat_endpoint(req: ChatRequest):
                             "content": f"[TOOL RESULT: memory_write]\nFailed to save: {skip_reason}"
                         }
                         result["error"] = skip_reason
-                        print(f" [Tools] memory_write failed: {skip_reason}")
+                        logger.warning(f"[Tools] memory_write failed: {skip_reason}")
 
                 else:
                     result["error"] = f"Unknown tool: {tool_name}"
-                    print(f" [Tools] Unknown tool: {tool_name}")
+                    logger.warning(f"[Tools] Unknown tool: {tool_name}")
 
             except Exception as e:
                 error_msg = f"{tool_name} failed: {str(e)}"
                 result["error"] = error_msg
                 result["message"] = {"role": "system", "content": f"[ERROR] {error_msg}"}
-                print(f" [Tools] {error_msg}")
+                logger.warning(f"[Tools] {error_msg}")
 
             return result
 
@@ -1226,7 +1260,7 @@ async def chat_endpoint(req: ChatRequest):
                 error_msg = f"{tool_name} raised exception: {str(result)}"
                 tool_errors.append(error_msg)
                 tool_messages.append({"role": "system", "content": f"[ERROR] {error_msg}"})
-                print(f" [Tools] {error_msg}")
+                logger.warning(f"[Tools] {error_msg}")
                 continue
 
             # Process successful result
@@ -1240,9 +1274,9 @@ async def chat_endpoint(req: ChatRequest):
                 tool_errors.append(f"{result['tool_name']}: {result['error']}")
 
         # Structured logging summary
-        print(f" [Tools] Summary - Requested: {tools_requested} | Executed: {tools_executed} | Errors: {tool_errors if tool_errors else 'None'}")
+        logger.debug(f"[Tools] Summary - Requested: {tools_requested} | Executed: {tools_executed} | Errors: {tool_errors if tool_errors else 'None'}")
     else:
-        print(f" [Chat] No tools requested and memory_mode is off — skipping tool execution", flush=True)
+        logger.debug("[Chat] No tools requested and memory_mode is off — skipping tool execution")
 
     # ---------------------------------------------------------
     # 4. Build Final Context
@@ -1252,7 +1286,7 @@ async def chat_endpoint(req: ChatRequest):
     global tutorial_prompts
     if session_id in tutorial_prompts:
         system_prompt_text = tutorial_prompts[session_id]
-        print(f" [Chat] Using tutorial system prompt for session {session_id}")
+        logger.debug(f"[Chat] Using tutorial system prompt for session {session_id}")
     elif req.system_prompt:
         system_prompt_text = req.system_prompt
     else:
@@ -1294,7 +1328,7 @@ async def chat_endpoint(req: ChatRequest):
             "then provide your final answer outside the tags."
         )
 
-    print(f" [Chat] Final Context: {len(messages)} msgs. Tools used: {len(tool_messages)}")
+    logger.debug(f"[Chat] Final Context: {len(messages)} msgs. Tools used: {len(tool_messages)}")
 
     # ---------------------------------------------------------
     # 5. Stream Response
@@ -1326,7 +1360,7 @@ async def chat_endpoint(req: ChatRequest):
                     # Log lock acquisition
                     lock_acquired = time.time()
                     lock_wait_ms = (lock_acquired - start_time) * 1000
-                    print(f"[Perf] Lock wait: {lock_wait_ms:.1f}ms")
+                    logger.debug(f"[Perf] Lock wait: {lock_wait_ms:.1f}ms")
 
                     stream = current_model.create_chat_completion(
                         messages=messages,
@@ -1346,7 +1380,7 @@ async def chat_endpoint(req: ChatRequest):
                         if token_count == 0:
                             first_token_time = time.time()
                             ttft_ms = (first_token_time - start_time) * 1000
-                            print(f"[Perf] Time to first token: {ttft_ms:.1f}ms")
+                            logger.debug(f"[Perf] Time to first token: {ttft_ms:.1f}ms")
 
                         token_count += 1
                         full_parts.append(content)
@@ -1358,7 +1392,7 @@ async def chat_endpoint(req: ChatRequest):
                 tps = token_count / elapsed if elapsed > 0 else 0
 
                 # Detailed performance logging
-                print(f"[Perf] Tokens: {token_count}, Time: {elapsed:.2f}s, TPS: {tps:.1f}")
+                logger.debug(f"[Perf] Tokens: {token_count}, Time: {elapsed:.2f}s, TPS: {tps:.1f}")
 
                 stats_payload = {
                     "tokens_generated": token_count,
@@ -1381,10 +1415,6 @@ async def chat_endpoint(req: ChatRequest):
             kind, payload = await queue.get()
 
             if kind == "data":
-                # Debug logging for streaming investigation (gated behind DEBUG)
-                if DEBUG:
-                    preview = payload[:50] if len(payload) > 50 else payload
-                    print(f"[STREAM] Yielding token: {preview} (len: {len(payload)})", flush=True)
                 yield f"data: {json.dumps({'content': payload, 'stop': False})}\n\n"
                 continue
 
@@ -1473,7 +1503,7 @@ async def tutorial_chat_endpoint(req: TutorialChatRequest):
     # 3. Current User Message
     messages.append({"role": "user", "content": user_msg})
 
-    print(f" [Tutorial] Context size: {len(messages)} messages.")
+    logger.debug(f"[Tutorial] Context size: {len(messages)} messages.")
 
     # Stream Response (Standard SSE format)
     async def event_stream():
@@ -1513,10 +1543,6 @@ async def tutorial_chat_endpoint(req: TutorialChatRequest):
             kind, payload = await queue.get()
 
             if kind == "data":
-                # Debug logging for streaming investigation (gated behind DEBUG)
-                if DEBUG:
-                    preview = payload[:50] if len(payload) > 50 else payload
-                    print(f"[STREAM] Yielding token: {preview} (len: {len(payload)})", flush=True)
                 yield f"data: {json.dumps({'content': payload, 'stop': False})}\n\n"
                 continue
 
@@ -1559,7 +1585,7 @@ async def tutorial_swap_prompt_endpoint(req: TutorialSwapPromptRequest):
     # Store in session-specific temporary storage
     tutorial_prompts[session_id] = prompt_text
 
-    print(f" [Tutorial] Swapped system prompt for session {session_id}: {prompt_text[:50]}...")
+    logger.debug(f"[Tutorial] Swapped system prompt for session {session_id}: {prompt_text[:50]}...")
 
     return {"status": "ok"}
 
@@ -1640,7 +1666,7 @@ async def tutorial_commit_endpoint(req: TutorialCommitRequest):
     # ------------------------------
     # 2. Atomic Execution (DB Transaction)
     # ------------------------------
-    print(" [Tutorial] Committing results (Atomic)...")
+    logger.info("[Tutorial] Committing results (Atomic)...")
 
     conn = sqlite3.connect(database.DB_NAME)
     cursor = conn.cursor()
@@ -1724,18 +1750,18 @@ async def tutorial_commit_endpoint(req: TutorialCommitRequest):
         """, (now, now))
 
         conn.commit()
-        print(" [Tutorial] Commit success.")
+        logger.info("[Tutorial] Commit success.")
 
         # Clear all tutorial prompts (session cleanup)
         global tutorial_prompts
         tutorial_prompts.clear()
-        print(" [Tutorial] Cleared tutorial prompts.")
+        logger.debug("[Tutorial] Cleared tutorial prompts.")
 
         return {"status": "ok"}
 
     except Exception as e:
         conn.rollback()
-        print(f" [Tutorial] Commit Failed (Rollback): {e}")
+        logger.error(f"[Tutorial] Commit Failed (Rollback): {e}")
         raise HTTPException(status_code=500, detail=f"Commit failed: {str(e)}")
     finally:
         conn.close()
@@ -1750,7 +1776,7 @@ async def tutorial_reset_endpoint():
     Resets the tutorial state to allow re-onboarding.
     Clears default settings but preserves core memory/identity.
     """
-    print(" [Tutorial] Resetting tutorial state...")
+    logger.info("[Tutorial] Resetting tutorial state...")
 
     # Allow-list of keys to clear (same as Commit allow-list)
     KEYS_TO_CLEAR = [
@@ -1783,8 +1809,42 @@ async def tutorial_reset_endpoint():
         return {"status": "ok", "message": "Tutorial reset complete."}
 
     except Exception as e:
-        print(f" [Tutorial] Reset Error: {e}")
+        logger.error(f"[Tutorial] Reset Error: {e}")
         raise HTTPException(status_code=500, detail=f"Reset failed: {str(e)}")
     finally:
         if conn:
             conn.close()
+
+
+# ------------------------------
+# Routes: Server Control
+# ------------------------------
+@app.post("/server/stop")
+async def stop_server():
+    import signal
+
+    logging.shutdown()
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
+    export_filename = f"localis_{timestamp}.log"
+    error_log_dir = Path(__file__).resolve().parent.parent / "Error Log"
+    error_log_dir.mkdir(exist_ok=True)
+    export_path = error_log_dir / export_filename
+
+    exported = False
+    if _LOG_FILE.exists():
+        shutil.copy2(_LOG_FILE, export_path)
+        exported = True
+
+    async def _shutdown():
+        await asyncio.sleep(0.5)
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    asyncio.create_task(_shutdown())
+
+    return {
+        "status": "stopping",
+        "exported": exported,
+        "log_path": str(export_path) if exported else None,
+        "filename": export_filename if exported else None,
+    }

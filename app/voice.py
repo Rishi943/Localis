@@ -31,6 +31,8 @@ WHISPER_DEVICE = os.getenv("LOCALIS_WHISPER_DEVICE", "auto")
 TTS_ENGINE = os.getenv("LOCALIS_TTS_ENGINE", "piper")
 PIPER_MODEL = os.getenv("LOCALIS_PIPER_MODEL", "")
 VOICE_PRELOAD = os.getenv("LOCALIS_VOICE_PRELOAD", "0") == "1"
+WAKEWORD_TRANSLATE: bool = os.getenv("LOCALIS_WAKEWORD_TRANSLATE", "1") == "1"
+PTT_TRANSLATE: bool = os.getenv("LOCALIS_PTT_TRANSLATE", "0") == "1"
 
 # ---------------------------------------------------------------------------
 # Independent locks — never interact with MODEL_LOCK or ASSIST_MODEL_LOCK
@@ -333,10 +335,13 @@ async def transcribe(
 
     def _do_transcribe():
         with VOICE_STT_LOCK:
+            _task = "translate" if PTT_TRANSLATE else "transcribe"
+            logger.debug(f"[Voice] PTT STT task={_task!r}")
             segments, info = _stt_model.transcribe(
                 io.BytesIO(wav_bytes),
                 beam_size=5,
                 vad_filter=True,
+                task=_task,
             )
             text = " ".join(s.text for s in segments).strip()
             return text, info.language, getattr(info, "duration", None)
@@ -344,7 +349,7 @@ async def transcribe(
     text, language, duration_s = await loop.run_in_executor(None, _do_transcribe)
 
     stt_ms = round((time.monotonic() - t0) * 1000)
-    logger.info(f"[Voice] Transcribed in {stt_ms}ms: {text[:80]!r}")
+    logger.debug(f"[Voice] Transcribed in {stt_ms}ms: {text[:80]!r}")
 
     from fastapi.responses import JSONResponse
     return JSONResponse(
@@ -399,7 +404,7 @@ async def speak(
         raise HTTPException(status_code=503, detail=str(e))
 
     tts_ms = round((time.monotonic() - t0) * 1000)
-    logger.info(f"[Voice] TTS synthesized {len(wav_bytes)} bytes in {tts_ms}ms")
+    logger.debug(f"[Voice] TTS synthesized {len(wav_bytes)} bytes in {tts_ms}ms")
 
     return StreamingResponse(
         io.BytesIO(wav_bytes),
@@ -424,10 +429,13 @@ def _transcribe_wav_sync(wav_bytes: bytes) -> Optional[str]:
 
     with VOICE_STT_LOCK:
         try:
+            _task = "translate" if WAKEWORD_TRANSLATE else "transcribe"
+            logger.debug(f"[Voice] Wakeword STT task={_task!r}")
             segments, _info = _stt_model.transcribe(
                 io.BytesIO(wav_bytes),
                 beam_size=5,
                 vad_filter=True,
+                task=_task,
             )
             text = " ".join(s.text for s in segments).strip()
             return text or None

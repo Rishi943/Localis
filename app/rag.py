@@ -1,6 +1,7 @@
 # app/rag.py
 from __future__ import annotations
 
+import logging
 import re
 import hashlib
 import mimetypes
@@ -11,6 +12,8 @@ from pathlib import Path
 from uuid import uuid4
 from datetime import datetime, timezone
 from typing import Optional, Dict, List
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
@@ -215,6 +218,7 @@ def _ingest_files_background(session_id: str, file_ids: List[str], data_dir: Pat
             files_to_process.append(file_record)
 
         total_files = len(files_to_process)
+        logger.info(f"[RAG] Ingest job started: session={session_id[:12]} files={total_files}")
         _update_ingest_job_state(
             session_id,
             state="running",
@@ -240,6 +244,7 @@ def _ingest_files_background(session_id: str, file_ids: List[str], data_dir: Pat
 
             # Phase 1: Extract
             try:
+                logger.info(f"[RAG] Extracting {i+1}/{total_files}: {file_name}")
                 _update_ingest_job_state(
                     session_id,
                     phase="extract",
@@ -379,6 +384,7 @@ def _ingest_files_background(session_id: str, file_ids: List[str], data_dir: Pat
         # Mark as done (if not cancelled)
         current_state = _get_ingest_job_state(session_id)
         if current_state["state"] != "cancelled":
+            logger.info(f"[RAG] Ingest complete: session={session_id[:12]} files={total_files}")
             _update_ingest_job_state(
                 session_id,
                 state="done",
@@ -389,6 +395,7 @@ def _ingest_files_background(session_id: str, file_ids: List[str], data_dir: Pat
             )
 
     except Exception as e:
+        logger.error(f"[RAG] Ingest failed: session={session_id[:12]} error={str(e)[:200]}")
         _update_ingest_job_state(
             session_id,
             state="error",

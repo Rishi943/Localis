@@ -1,9 +1,12 @@
 # app/tools.py
+import logging
 import os
 import httpx
 from dotenv import load_dotenv
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
 
 # ------------------------------
 # Load Secrets
@@ -56,7 +59,7 @@ async def web_search(
             return "ERROR_CUSTOM_ENDPOINT_MISSING"
 
         try:
-            print(f" [Tools] Searching Custom Provider for: {query}")
+            logger.debug(f"[Tools] Searching Custom Provider for: {query}")
             async with httpx.AsyncClient(timeout=10.0) as client:
                 params = {"q": query}
                 # Attach custom key if provided
@@ -97,7 +100,7 @@ async def web_search(
     # Run if mode is 'brave' OR mode is 'auto'
     if mode in ["brave", "auto"] and brave_key:
         try:
-            print(f" [Tools] Searching Brave for: {query}")
+            logger.debug(f"[Tools] Searching Brave for: {query}")
             async with httpx.AsyncClient(timeout=10.0) as client:
                 headers = {"X-Subscription-Token": brave_key, "Accept": "application/json"}
                 r = await client.get(
@@ -117,7 +120,7 @@ async def web_search(
                     # If we found results in explicit 'brave' mode or 'auto' mode, we are done
                     if results: return "\n".join(results)
         except Exception as e:
-            print(f" [Brave Error] {e}")
+            logger.warning(f"[Tools] Brave error: {e}")
 
     # --- Tavily Search ---
     # Determine key: override if mode is explicit 'tavily', else use env
@@ -126,7 +129,7 @@ async def web_search(
     # Run if mode is 'tavily' OR (mode is 'auto' AND no results yet)
     if (mode == "tavily" or (mode == "auto" and not results)) and tavily_key:
         try:
-            print(f" [Tools] Searching Tavily for: {query}")
+            logger.debug(f"[Tools] Searching Tavily for: {query}")
             async with httpx.AsyncClient(timeout=10.0) as client:
                 r = await client.post(
                     "https://api.tavily.com/search",
@@ -142,7 +145,7 @@ async def web_search(
 
                     if results: return "\n".join(results)
         except Exception as e:
-            print(f" [Tavily Error] {e}")
+            logger.warning(f"[Tools] Tavily error: {e}")
 
     return "ERROR_NO_RESULTS"
 

@@ -1,11 +1,14 @@
 # app/database.py
 import json
+import logging
 import re
 import sqlite3
 import os
 import time
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple, Union
+
+logger = logging.getLogger(__name__)
 
 # ------------------------------
 # Database Path Resolution
@@ -133,20 +136,20 @@ def init_db():
             is_legacy_messages = (len(messages_columns) > 0 and "timestamp" not in messages_columns)
 
             if is_legacy_sessions or is_legacy_messages:
-                print(" [System] Critical: Database schema mismatch detected (legacy version).")
+                logger.error("[Database] Critical: Database schema mismatch detected (legacy version).")
                 timestamp = int(time.time())
                 backup_name = f"{DB_PATH}.bak.{timestamp}"
                 try:
                     os.rename(DB_PATH, backup_name)
-                    print(f" [System] Data Preservation: Renamed old DB to '{backup_name}'.")
-                    print(" [System] Creating fresh database with correct schema...")
+                    logger.info(f"[Database] Data Preservation: Renamed old DB to '{backup_name}'.")
+                    logger.info("[Database] Creating fresh database with correct schema...")
                     # If we renamed the DB, the new one will be fresh
                     is_new_db = True
                 except OSError as e:
-                    print(f" [System] Error renaming database: {e}")
+                    logger.error(f"[Database] Error renaming database: {e}")
 
         except Exception as e:
-            print(f" [System] Warning: Database health check failed ({e}). Proceeding...")
+            logger.warning(f"[Database] Database health check failed ({e}). Proceeding...")
 
     conn = _connect_db()
     c = conn.cursor()
@@ -243,7 +246,7 @@ def init_db():
     for col_name, col_type in new_columns.items():
         if col_name not in existing_columns:
             c.execute(f"ALTER TABLE rag_files ADD COLUMN {col_name} {col_type}")
-            print(f" [Database] Added column '{col_name}' to rag_files table")
+            logger.info(f"[Database] Added column '{col_name}' to rag_files table")
 
 
 

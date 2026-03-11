@@ -13,7 +13,10 @@
 #     threshold before triggering (edit _check_wakeword() below)
 #
 # False negatives (not triggering):
-#   - Lower LOCALIS_WAKEWORD_THRESHOLD (try 0.4)
+#   - Lower LOCALIS_WAKEWORD_THRESHOLD (recommended starting point: 0.15–0.20)
+#     The browser WS path uses an 8-frame (~640ms) moving average; typical "Hey Jarvis"
+#     peak averages are 0.15–0.30 depending on mic and room conditions.
+#     Values above 0.25 are unlikely to trigger without a very clear recording environment.
 #   - Verify mic selection: python -c "import sounddevice as sd; print(sd.query_devices())"
 #     Then set LOCALIS_WAKEWORD_SOUNDDEVICE_IDX to the correct device index
 #   - Check mic gain in system mixer: pavucontrol (PulseAudio/PipeWire)
@@ -97,6 +100,10 @@ _last_error: Optional[str] = None
 _daemon_thread: Optional[threading.Thread] = None
 _stop_event    = threading.Event()
 
+# Preload state — set by _preload_models_bg() daemon thread at startup
+_preload_done  = threading.Event()
+_preload_error: Optional[str] = None
+
 
 def _set_state(new: str) -> None:
     global _state
@@ -167,8 +174,20 @@ _VENV_HINT = (
 )
 
 
+def _pick_model_file(model_dir: Path, stem: str) -> tuple:
+    """
+    Return (Path, framework) for the best available model file.
+    Prefers ONNX (works with NumPy 2.x); falls back to TFLite.
+    """
+    for ext, fw in ((".onnx", "onnx"), (".tflite", "tflite")):
+        matches = sorted(model_dir.glob(f"{stem}*{ext}"))
+        if matches:
+            return matches[0], fw
+    return None, None
+
+
 def _load_oww_model():
-    """Load openWakeWord model. Raises ImportError if not installed."""
+    """Load openWakeWord model into _oww_model. Raises ImportError / RuntimeError on failure."""
     global _oww_model
     try:
         from openwakeword.model import Model
@@ -178,14 +197,52 @@ def _load_oww_model():
             f"{_VENV_HINT}"
         ) from exc
 
-    model_path_or_name = WAKEWORD_MODEL
-    # If it looks like a file path, load as custom tflite; otherwise use built-in name
-    logger.info(
-        f"[Wakeword] Loading {'custom' if os.path.isfile(model_path_or_name) else 'built-in'} "
-        f"model: '{model_path_or_name}'"
-    )
+    # If WAKEWORD_MODEL is an explicit file path, use it directly.
+    if os.path.isfile(WAKEWORD_MODEL):
+        model_path = Path(WAKEWORD_MODEL)
+        ext = model_path.suffix.lower()
+        framework = "onnx" if ext == ".onnx" else "tflite"
+        logger.info(f"[Wakeword] Loading custom model: {model_path}")
+    else:
+        # Named model (e.g. "hey jarvis") — resolve via DATA_DIR/wakeword_models/
+        if _DATA_DIR is None:
+            raise RuntimeError(
+                "_DATA_DIR not set — register_wakeword() must be called before enabling"
+            )
+        model_dir = _DATA_DIR / "wakeword_models"
+        model_dir.mkdir(parents=True, exist_ok=True)
+        glob_name = WAKEWORD_MODEL.replace(" ", "_")
+        model_path, framework = _pick_model_file(model_dir, glob_name)
+        if model_path is None:
+            # Wait for the background preload thread (up to 30 s)
+            logger.info("[Wakeword] Waiting for preload thread to finish downloading model…")
+            _preload_done.wait(timeout=30)
+            model_path, framework = _pick_model_file(model_dir, "hey_jarvis")
+        if model_path is None:
+            raise RuntimeError(
+                f"Model files not found in {model_dir} after preload. "
+                "Ensure internet access on first run or pre-place a model file there. "
+                f"{_VENV_HINT}"
+            )
+        logger.info(f"[Wakeword] Loading built-in model ({framework}): {model_path.name}")
+
+    # Resolve feature extractor models — match same framework
+    model_dir = model_path.parent
+    ext = ".onnx" if framework == "onnx" else ".tflite"
+    melspec_m = sorted(model_dir.glob(f"melspectrogram*{ext}"))
+    embed_m   = sorted(model_dir.glob(f"embedding_model*{ext}"))
+    kwargs: dict = {}
+    if melspec_m:
+        kwargs["melspec_model_path"] = str(melspec_m[0])
+    if embed_m:
+        kwargs["embedding_model_path"] = str(embed_m[0])
+
     try:
-        _oww_model = Model(wakeword_models=[model_path_or_name])
+        _oww_model = Model(
+            wakeword_models=[str(model_path)],
+            inference_framework=framework,
+            **kwargs,
+        )
     except TypeError as exc:
         raise RuntimeError(
             f"openwakeword API mismatch (TypeError: {exc}). "
@@ -194,13 +251,11 @@ def _load_oww_model():
         ) from exc
     except Exception as exc:
         raise RuntimeError(
-            f"Failed to load wakeword model '{model_path_or_name}': {exc}. "
-            "On first run, openWakeWord downloads model files — ensure internet access. "
-            "Or set LOCALIS_WAKEWORD_MODEL=/path/to/custom.tflite. "
+            f"Failed to load wakeword model from '{model_path}': {exc}. "
             f"{_VENV_HINT}"
         ) from exc
 
-    logger.info("[Wakeword] openWakeWord model loaded.")
+    logger.info("[Wakeword] Daemon model loaded.")
 
 
 def _check_wakeword(chunk: bytes) -> float:
@@ -450,12 +505,44 @@ router = APIRouter(prefix="/voice/wakeword", tags=["wakeword"])
 _DATA_DIR: Optional[Path] = None
 
 
+def _preload_models_bg() -> None:
+    """
+    Download hey_jarvis model files to DATA_DIR/wakeword_models/ if not already present.
+    Runs in a daemon thread at startup so the first WS/daemon enable is instant.
+    """
+    global _preload_error
+    try:
+        import openwakeword.utils as oww_utils
+        if _DATA_DIR is None:
+            raise RuntimeError("_DATA_DIR not set")
+        model_dir = _DATA_DIR / "wakeword_models"
+        model_dir.mkdir(parents=True, exist_ok=True)
+        matches = [p for ext in ("*.onnx", "*.tflite")
+                   for p in model_dir.glob(f"hey_jarvis{ext}")]
+        if not matches:
+            logger.info("[Wakeword] Preloading: downloading hey_jarvis model…")
+            oww_utils.download_models(
+                model_names=["hey_jarvis"],
+                target_directory=str(model_dir),
+            )
+            logger.info("[Wakeword] Preload complete.")
+        else:
+            logger.info("[Wakeword] Preload: model already cached, skipping download.")
+    except Exception as exc:
+        _preload_error = str(exc)
+        logger.warning(f"[Wakeword] Preload failed: {exc}")
+    finally:
+        _preload_done.set()
+
+
 def register_wakeword(app, data_dir):
     """Called from main.py during app construction."""
     global _DATA_DIR
     _DATA_DIR = Path(data_dir)
     app.include_router(router)
     logger.info("[Wakeword] Router registered at /voice/wakeword")
+    t = threading.Thread(target=_preload_models_bg, daemon=True, name="wakeword-preload")
+    t.start()
 
 
 # ---------------------------------------------------------------------------
@@ -483,9 +570,9 @@ def _load_ws_model():
     model_dir = _DATA_DIR / "wakeword_models"
     model_dir.mkdir(parents=True, exist_ok=True)
 
-    # Use glob to find any versioned hey_jarvis tflite file (e.g. hey_jarvis_v0.1.tflite)
-    matches = sorted(model_dir.glob("hey_jarvis*.tflite"))
-    if not matches:
+    # Prefer ONNX (works with NumPy 2.x); fall back to TFLite
+    model_path, framework = _pick_model_file(model_dir, "hey_jarvis")
+    if model_path is None:
         logger.info("[Wakeword WS] Downloading hey_jarvis model...")
         try:
             oww_utils.download_models(
@@ -495,23 +582,23 @@ def _load_ws_model():
         except Exception as exc:
             raise RuntimeError(
                 f"Failed to download hey_jarvis model: {exc}. "
-                "Ensure internet access on first run, or pre-place the hey_jarvis tflite file "
+                "Ensure internet access on first run, or pre-place the hey_jarvis model file "
                 f"in {model_dir}. {_VENV_HINT}"
             ) from exc
-        matches = sorted(model_dir.glob("hey_jarvis*.tflite"))
+        model_path, framework = _pick_model_file(model_dir, "hey_jarvis")
 
-    if not matches:
+    if model_path is None:
         raise RuntimeError(
             f"hey_jarvis model not found in {model_dir} after download attempt. "
             f"{_VENV_HINT}"
         )
 
-    tflite_path = matches[0]
-    logger.info(f"[Wakeword WS] Loading model: {tflite_path.name}")
+    logger.info(f"[Wakeword WS] Loading model: {model_path.name} ({framework})")
 
-    # Resolve feature extractor model paths (downloaded alongside hey_jarvis)
-    melspec_matches = sorted(model_dir.glob("melspectrogram*.tflite"))
-    embed_matches   = sorted(model_dir.glob("embedding_model*.tflite"))
+    # Resolve feature extractor model paths — match same framework
+    ext = ".onnx" if framework == "onnx" else ".tflite"
+    melspec_matches = sorted(model_dir.glob(f"melspectrogram*{ext}"))
+    embed_matches   = sorted(model_dir.glob(f"embedding_model*{ext}"))
     feature_kwargs = {}
     if melspec_matches:
         feature_kwargs["melspec_model_path"] = str(melspec_matches[0])
@@ -520,8 +607,8 @@ def _load_ws_model():
 
     try:
         return Model(
-            wakeword_models=[str(tflite_path)],
-            inference_framework="tflite",
+            wakeword_models=[str(model_path)],
+            inference_framework=framework,
             **feature_kwargs,
         )
     except TypeError as exc:
@@ -532,7 +619,7 @@ def _load_ws_model():
         ) from exc
     except Exception as exc:
         raise RuntimeError(
-            f"Failed to load hey_jarvis model from {tflite_path}: {exc}. "
+            f"Failed to load hey_jarvis model from {model_path}: {exc}. "
             f"{_VENV_HINT}"
         ) from exc
 
@@ -541,7 +628,7 @@ def _load_ws_model():
 # Anti-spam detector (moving average + arm/disarm)
 # ---------------------------------------------------------------------------
 
-_WINDOW = 16            # frames → ~1.28 s at 80ms/frame
+_WINDOW = 8             # frames → ~640 ms at 80ms/frame (fits "Hey Jarvis" utterance)
 _COOLDOWN_FRAMES = 25   # frames → ~2.0 s after trigger
 
 
@@ -553,6 +640,7 @@ def _feed_frame(det: dict, chunk_bytes: bytes, threshold: float, model) -> bool:
     """
     Feed one 1280-sample Int16 chunk (2560 bytes).
     Returns True exactly once per wake event.
+    Stores latest raw score in det["last_raw_score"] for callers to read.
     """
     if det["cooldown"] > 0:
         det["cooldown"] -= 1
@@ -569,10 +657,16 @@ def _feed_frame(det: dict, chunk_bytes: bytes, threshold: float, model) -> bool:
     except Exception:
         score = 0.0
 
+    det["last_raw_score"] = score
     det["scores"].append(score)
+
+    if _DEBUG and score > 0.05:
+        logger.debug(f"[Wakeword WS] frame score={score:.3f} (threshold={threshold})")
 
     if det["armed"] and len(det["scores"]) >= _WINDOW // 2:
         avg = sum(det["scores"]) / len(det["scores"])
+        if _DEBUG and avg > 0.05:
+            logger.debug(f"[Wakeword WS] avg={avg:.3f} armed={det['armed']}")
         if avg >= threshold:
             det["armed"] = False
             det["cooldown"] = _COOLDOWN_FRAMES
@@ -629,6 +723,8 @@ async def wakeword_ws(websocket: WebSocket):
     await websocket.send_json({"event": "ready"})
     det = _make_detector()
     threshold = WAKEWORD_THRESHOLD
+    _frame_count = 0
+    _LOG_INTERVAL = 38   # ~3 s at 80 ms/frame — log peak score periodically
 
     try:
         while True:
@@ -642,9 +738,21 @@ async def wakeword_ws(websocket: WebSocket):
                 fired = await loop.run_in_executor(
                     None, _feed_frame, det, chunk, threshold, model
                 )
+                _frame_count += 1
                 if fired:
                     score = det.get("last_score", 0.0)
-                    await websocket.send_json({"event": "wake", "score": round(score, 3)})
+                    await websocket.send_json({"event": "wake", "score": round(float(score), 3)})
+                elif _frame_count % _LOG_INTERVAL == 0:
+                    # Periodic peak score report — always at DEBUG, visible when LOCALIS_DEBUG=1
+                    peak = det.get("last_raw_score", 0.0)
+                    logger.debug(
+                        f"[Wakeword WS] listening — peak={peak:.3f} threshold={threshold}"
+                    )
+                    await websocket.send_json({
+                        "event": "score",
+                        "score": round(float(peak), 3),
+                        "threshold": threshold,
+                    })
     except WebSocketDisconnect:
         pass
     except Exception as exc:
@@ -713,16 +821,18 @@ async def wakeword_status(_: None = Depends(_voice_auth_dep)):
     """Return current daemon state and configuration."""
     state = _get_state()
     return {
-        "enabled":      state != "DISABLED",
-        "state":        state.lower(),
-        "model_loaded": _oww_model is not None,
-        "last_error":   _last_error,
-        "model":        WAKEWORD_MODEL,
-        "threshold":    WAKEWORD_THRESHOLD,
-        "cooldown_s":   WAKEWORD_COOLDOWN,
-        "max_cmd_s":    WAKEWORD_MAX_CMD,
-        "silence_s":    WAKEWORD_SILENCE_S,
-        "silence_db":   WAKEWORD_SILENCE_DB,
-        "session":      WAKEWORD_SESSION,
-        "base_url":     WAKEWORD_BASE_URL,
+        "enabled":         state != "DISABLED",
+        "state":           state.lower(),
+        "model_loaded":    _oww_model is not None,
+        "model_preloaded": _preload_done.is_set() and _preload_error is None,
+        "preload_error":   _preload_error,
+        "last_error":      _last_error,
+        "model":           WAKEWORD_MODEL,
+        "threshold":       WAKEWORD_THRESHOLD,
+        "cooldown_s":      WAKEWORD_COOLDOWN,
+        "max_cmd_s":       WAKEWORD_MAX_CMD,
+        "silence_s":       WAKEWORD_SILENCE_S,
+        "silence_db":      WAKEWORD_SILENCE_DB,
+        "session":         WAKEWORD_SESSION,
+        "base_url":        WAKEWORD_BASE_URL,
     }

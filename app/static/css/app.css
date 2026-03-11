@@ -2715,3 +2715,19 @@ body.theme-onepiece textarea { padding-right: 84px; /* room for hat */ }
 
 .voice-status-bar.amber .voice-status-tag { color: #92400e; }
 .voice-status-bar.green  .voice-status-tag { color: #064e3b; }
+
+/* Preloading state — model is still downloading */
+.wakeword-toggle-btn.preloading {
+    opacity: 0.6;
+    cursor: wait;
+    animation: wakeword-pulse 1.5s ease-in-out infinite;
+}
+
+/* --- Server Control Button --- */
+.btn-danger {
+    background: #dc2626;
+    color: #fff;
+    border: none;
+}
+.btn-danger:hover { background: #b91c1c; }
+.btn-danger:disabled { background: #9ca3af; cursor: not-allowed; }

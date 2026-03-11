@@ -1561,7 +1561,9 @@ const els = {
         layers: document.getElementById('slider-layers'),
         ctx: document.getElementById('slider-ctx'),
         temp: document.getElementById('slider-temp')
-    }
+    },
+    btnStopServer: document.getElementById('btn-stop-server'),
+    stopServerStatus: document.getElementById('stop-server-status'),
 };
 
 // ============================================================
@@ -4453,6 +4455,29 @@ if (thinkToggle) {
 if(els.btnSavePrompt) els.btnSavePrompt.addEventListener('click', api.saveSystemPrompt);
 if(els.btnResetPrompt) els.btnResetPrompt.addEventListener('click', api.resetSystemPrompt);
 
+// Stop Server & Export Logs
+if (els.btnStopServer) {
+    els.btnStopServer.addEventListener('click', async () => {
+        if (!confirm('Stop the server and export logs? You will need to restart manually.')) return;
+        els.btnStopServer.disabled = true;
+        els.btnStopServer.textContent = 'Stopping\u2026';
+        try {
+            const res = await fetch('/server/stop', { method: 'POST' });
+            const data = await res.json();
+            els.stopServerStatus.style.display = '';
+            if (data.exported) {
+                els.stopServerStatus.textContent = `Log saved: ${data.filename}`;
+            } else {
+                els.stopServerStatus.textContent = 'Server stopped (no log file found).';
+            }
+        } catch {
+            // Fetch will throw when the server closes — that's expected
+            els.stopServerStatus.style.display = '';
+            els.stopServerStatus.textContent = 'Server stopped.';
+        }
+    });
+}
+
 // === SYSTEM PROMPT MODAL ===
 function openSystemPromptModal() {
     const modal = document.getElementById('system-prompt-modal');
@@ -5299,6 +5324,8 @@ const wakewordUI = (() => {
     let _reconnectTimer = null;
     let _enabling = false;  // guard against concurrent enable() calls
     let _daemonPollInterval = null;
+    let _preloadReady = false;      // true once model_preloaded=true from server
+    let _preloadPollTimer = null;   // interval polling /voice/wakeword/status during preload
 
     const _stateChangeCallbacks = [];
     function onStateChange(cb) { _stateChangeCallbacks.push(cb); }
@@ -5401,6 +5428,8 @@ const wakewordUI = (() => {
             } else if (data.event === 'wake') {
                 Logger.debug('Wakeword', `Wake detected score=${data.score}`);
                 _onWake(data.score);
+            } else if (data.event === 'score') {
+                Logger.debug('Wakeword', `score=${data.score} threshold=${data.threshold}`);
             } else if (data.event === 'error') {
                 showToast(`Wakeword error: ${data.message}`, 'error');
                 disable();
@@ -5499,6 +5528,34 @@ const wakewordUI = (() => {
         _stopDaemonPoll();
     }
 
+    function _setPreloadReady() {
+        _preloadReady = true;
+        clearInterval(_preloadPollTimer);
+        _preloadPollTimer = null;
+        els.wakewordToggleBtn?.classList.remove('preloading');
+        els.wakewordToggleBtn?.setAttribute('title', _isEnabled() ? 'Wake word: ON' : 'Wake word: OFF');
+        // If user had it enabled before preload finished, start now
+        if (_isEnabled()) enable();
+    }
+
+    function _startPreloadPoll() {
+        _preloadPollTimer = setInterval(async () => {
+            try {
+                const r = await fetch('/voice/wakeword/status');
+                if (!r.ok) return;
+                const d = await r.json();
+                if (d.preload_error) {
+                    clearInterval(_preloadPollTimer);
+                    _preloadPollTimer = null;
+                    els.wakewordToggleBtn?.classList.remove('preloading');
+                    showToast(`Wakeword unavailable: model download failed — check internet connection`, 'error');
+                } else if (d.model_preloaded) {
+                    _setPreloadReady();
+                }
+            } catch { /* server unreachable — ignore */ }
+        }, 2000);
+    }
+
     async function init() {
         // Only show toggle if voice is available
         let available = false;
@@ -5510,20 +5567,32 @@ const wakewordUI = (() => {
 
         els.wakewordToggleBtn?.removeAttribute('hidden');
 
-        // Restore persisted state
-        if (_isEnabled()) enable();
-
-        // If daemon already running (enabled by another client / curl), start polling
+        // Check preload status before enabling
         try {
             const sr = await fetch('/voice/wakeword/status');
             if (sr.ok) {
                 const sd = await sr.json();
-                if (sd.enabled) _startDaemonPoll();
+                if (sd.preload_error) {
+                    showToast(`Wakeword unavailable: model download failed — check internet connection`, 'error');
+                } else if (sd.model_preloaded) {
+                    _preloadReady = true;
+                    if (_isEnabled()) enable();
+                    if (sd.enabled) _startDaemonPoll();
+                } else {
+                    // Still downloading — show preloading state and poll
+                    els.wakewordToggleBtn?.classList.add('preloading');
+                    els.wakewordToggleBtn?.setAttribute('title', 'Wake word (downloading model…)');
+                    _startPreloadPoll();
+                }
             }
         } catch { /* ignore */ }
 
         // Wire toggle click
         els.wakewordToggleBtn?.addEventListener('click', () => {
+            if (!_preloadReady) {
+                showToast('Wakeword model is still downloading, please wait…', 'info');
+                return;
+            }
             if (_isEnabled()) {
                 disable();
             } else {
