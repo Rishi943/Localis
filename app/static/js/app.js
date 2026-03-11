@@ -1583,6 +1583,14 @@ const els = {
     rsbCtxAscii:     document.getElementById('rsb-ctx-ascii'),
     rsbCtxTokens:    document.getElementById('rsb-ctx-tokens'),
     rsbCtxPct:       document.getElementById('rsb-ctx-pct'),
+    rsbBulb:             document.getElementById('rsb-bulb'),
+    rsbBrightnessCtrl:   document.getElementById('rsb-brightness-ctrl'),
+    rsbBrightnessSlider: document.getElementById('rsb-brightness-slider'),
+    rsbKelvinCtrl:       document.getElementById('rsb-kelvin-ctrl'),
+    rsbKelvinSlider:     document.getElementById('rsb-kelvin-slider'),
+    rsbModelList:        document.getElementById('rsb-model-list'),
+    rsbBtnLoadModel:     document.getElementById('rsb-btn-load-model'),
+    rsbBtnUnloadModel:   document.getElementById('rsb-btn-unload-model'),
     modalProfileTags:      document.getElementById('modal-profile-tags'),
     modalSystemPrompt:     document.getElementById('system-prompt-modal-editor'),
     btnEditPromptSidebar:  document.getElementById('btn-edit-prompt-sidebar'),
@@ -2501,16 +2509,27 @@ const modePills = (() => {
   if (rRailBtn) rRailBtn.addEventListener('click', toggleRight);
 })();
 
-// ── rsbLights — Right sidebar lights control ─────────────────────────────────
+// ── rsbLights — Right sidebar lights control (direct HA API) ─────────────────
 const rsbLights = (() => {
   let _pollTimer = null;
+  let _activeControl = 'brightness';
 
   function _msSince(isoStr) {
     if (!isoStr) return '';
     const diff = Math.round((Date.now() - new Date(isoStr).getTime()) / 1000);
-    if (diff < 60)  return `${diff} seconds ago`;
-    if (diff < 3600) return `${Math.round(diff/60)} minutes ago`;
-    return `${Math.round(diff/3600)} hours ago`;
+    if (diff < 60)   return `${diff} seconds ago`;
+    if (diff < 3600) return `${Math.round(diff / 60)} minutes ago`;
+    return `${Math.round(diff / 3600)} hours ago`;
+  }
+
+  async function _haPost(path, body = {}) {
+    const r = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(`HA ${path} failed: ${r.status}`);
+    return r.json();
   }
 
   async function _refresh() {
@@ -2520,19 +2539,16 @@ const rsbLights = (() => {
       const data = await r.json();
       if (data.error) { _showUnavailable(); return; }
 
-      const pct = data.brightness_pct ?? 0;
+      const pct  = data.brightness_pct ?? 0;
       const isOn = data.state === 'on';
 
-      if (els.rsbLightsPct) els.rsbLightsPct.textContent = isOn ? `${pct}%` : 'Off';
-      if (els.rsbLightsAgo) els.rsbLightsAgo.textContent = _msSince(data.last_changed);
-
-      // Bulb fill
-      if (els.rsbBulbFill) els.rsbBulbFill.style.height = isOn ? `${pct}%` : '0%';
-      if (els.rsbBulbLine) els.rsbBulbLine.style.bottom = `calc(${isOn ? pct : 0}% + 5px)`;
-
-      // Toggle state
-      const toggle = els.rsbLightsToggle;
-      if (toggle) toggle.classList.toggle('on', isOn);
+      if (els.rsbLightsPct)   els.rsbLightsPct.textContent = isOn ? `${pct}%` : 'Off';
+      if (els.rsbLightsAgo)   els.rsbLightsAgo.textContent = _msSince(data.last_changed);
+      if (els.rsbBulbFill)    els.rsbBulbFill.style.height  = isOn ? `${pct}%` : '0%';
+      if (els.rsbBulbLine)    els.rsbBulbLine.style.bottom  = `calc(${isOn ? pct : 0}% + 5px)`;
+      if (els.rsbLightsToggle) els.rsbLightsToggle.classList.toggle('on', isOn);
+      if (els.rsbBulb)         els.rsbBulb.classList.toggle('lit', isOn);
+      if (els.rsbBrightnessSlider && isOn) els.rsbBrightnessSlider.value = pct;
     } catch (_) {
       _showUnavailable();
     }
@@ -2543,7 +2559,81 @@ const rsbLights = (() => {
     if (els.rsbLightsAgo) els.rsbLightsAgo.textContent = 'HA unavailable';
   }
 
+  function _setActiveControl(name) {
+    _activeControl = name;
+    ['power', 'brightness', 'color', 'kelvin'].forEach(n => {
+      document.getElementById(`rsb-btn-${n}`)?.classList.toggle('active', n === name);
+    });
+    if (els.rsbBrightnessCtrl) els.rsbBrightnessCtrl.classList.toggle('hidden', name !== 'brightness');
+    if (els.rsbKelvinCtrl)     els.rsbKelvinCtrl.classList.toggle('hidden', name !== 'kelvin');
+  }
+
+  function _wireControls() {
+    // Power button → toggle light directly
+    document.getElementById('rsb-btn-power')?.addEventListener('click', async () => {
+      try { await _haPost('/assist/light/toggle'); setTimeout(_refresh, 400); } catch (_) {}
+    });
+
+    // Brightness button → show slider
+    document.getElementById('rsb-btn-brightness')?.addEventListener('click', () => {
+      _setActiveControl('brightness');
+    });
+
+    // Color button → show swatches
+    document.getElementById('rsb-btn-color')?.addEventListener('click', () => {
+      _setActiveControl('color');
+    });
+
+    // Kelvin button → show kelvin slider
+    document.getElementById('rsb-btn-kelvin')?.addEventListener('click', () => {
+      _setActiveControl('kelvin');
+    });
+
+    // Toggle switch (on/off)
+    els.rsbLightsToggle?.addEventListener('click', async () => {
+      try { await _haPost('/assist/light/toggle'); setTimeout(_refresh, 400); } catch (_) {}
+    });
+
+    // Brightness slider — debounced HA call
+    let _bTimer = null;
+    els.rsbBrightnessSlider?.addEventListener('input', e => {
+      if (els.rsbLightsPct) els.rsbLightsPct.textContent = `${e.target.value}%`;
+      clearTimeout(_bTimer);
+      _bTimer = setTimeout(async () => {
+        try { await _haPost('/assist/light/brightness', { value: parseInt(e.target.value) }); } catch (_) {}
+      }, 150);
+    });
+    els.rsbBrightnessSlider?.addEventListener('change', () => setTimeout(_refresh, 500));
+
+    // Kelvin slider — debounced HA call
+    let _kTimer = null;
+    els.rsbKelvinSlider?.addEventListener('input', e => {
+      clearTimeout(_kTimer);
+      _kTimer = setTimeout(async () => {
+        try { await _haPost('/assist/light/kelvin', { kelvin: parseInt(e.target.value) }); } catch (_) {}
+      }, 150);
+    });
+    els.rsbKelvinSlider?.addEventListener('change', () => setTimeout(_refresh, 500));
+
+    // Color swatches — use class .rsb-sw (the actual class name in HTML)
+    document.querySelectorAll('#rsb-swatches .rsb-sw').forEach(swatch => {
+      swatch.addEventListener('click', async () => {
+        const hex = swatch.dataset.color;
+        if (!hex) return;
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        document.querySelectorAll('#rsb-swatches .rsb-sw').forEach(s => s.classList.remove('selected'));
+        swatch.classList.add('selected');
+        try { await _haPost('/assist/light/color', { rgb: [r, g, b] }); setTimeout(_refresh, 600); } catch (_) {}
+      });
+    });
+
+    _setActiveControl('brightness'); // default active mode
+  }
+
   function start() {
+    _wireControls();
     _refresh();
     _pollTimer = setInterval(_refresh, 5000);
   }
@@ -2555,21 +2645,99 @@ const rsbLights = (() => {
   return { start, stop, refresh: _refresh };
 })();
 
-if (els.rsbLightsToggle) {
-  els.rsbLightsToggle.addEventListener('click', async () => {
-    try {
-      await fetch('/assist/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: 'toggle the light',
-          session_id: state.sessionId || 'sidebar',
-        }),
+// ── rsbModel — Right sidebar model loader ────────────────────────────────────
+const rsbModel = (() => {
+  let _selectedModel = null;
+
+  function renderList() {
+    if (!els.rsbModelList) return;
+    const models = state.availableModels || [];
+    els.rsbModelList.innerHTML = '';
+
+    if (models.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'font-size:9px;color:rgba(255,255,255,.25);padding:4px 2px';
+      empty.textContent = 'No .gguf files found in models/';
+      els.rsbModelList.appendChild(empty);
+      return;
+    }
+
+    models.forEach(m => {
+      const item = document.createElement('div');
+      item.className = 'rsb-model-item' + (m.name === _selectedModel ? ' selected' : '');
+      item.textContent = `${m.name}  (${m.size_gb} GB)`;
+      item.title = m.name;
+      item.addEventListener('click', () => {
+        _selectedModel = m.name;
+        renderList();
+        if (els.rsbBtnLoadModel) els.rsbBtnLoadModel.disabled = false;
       });
-      setTimeout(() => rsbLights.refresh?.(), 600);
-    } catch (_) {}
-  });
-}
+      els.rsbModelList.appendChild(item);
+    });
+  }
+
+  function updateStatus(modelName) {
+    if (els.rsbModelName) els.rsbModelName.textContent = modelName || 'No model loaded';
+    if (els.rsbModelStatus) {
+      els.rsbModelStatus.textContent = modelName ? '● ONLINE' : '● OFFLINE';
+      els.rsbModelStatus.className = 'rsb-model-st ' + (modelName ? 'online' : 'offline');
+    }
+    if (els.rsbBtnUnloadModel) els.rsbBtnUnloadModel.disabled = !modelName;
+  }
+
+  function init() {
+    // Pre-select currently loaded model
+    if (state.currentModel) {
+      _selectedModel = state.currentModel;
+    }
+    renderList();
+    updateStatus(state.currentModel || null);
+
+    // Load button
+    els.rsbBtnLoadModel?.addEventListener('click', async () => {
+      if (!_selectedModel) return;
+      els.rsbBtnLoadModel.disabled = true;
+      els.rsbBtnLoadModel.textContent = 'Loading…';
+      try {
+        const r = await fetch('/models/load', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model_name: _selectedModel, n_gpu_layers: 35, n_ctx: 8192 }),
+        });
+        if (r.ok) {
+          state.modelLoaded = true;
+          state.currentModel = _selectedModel;
+          state.nCtx = 8192;
+          updateStatus(_selectedModel);
+          rsbStats.updateContextBar();
+          await api.getModels();
+          renderList();
+        }
+      } catch (_) {}
+      els.rsbBtnLoadModel.textContent = 'Load';
+      // re-enable only if a model is selected
+      els.rsbBtnLoadModel.disabled = !_selectedModel;
+    });
+
+    // Unload button
+    els.rsbBtnUnloadModel?.addEventListener('click', async () => {
+      els.rsbBtnUnloadModel.disabled = true;
+      els.rsbBtnUnloadModel.textContent = 'Unloading…';
+      try {
+        await fetch('/models/unload', { method: 'POST' });
+        state.modelLoaded = false;
+        state.currentModel = null;
+        _selectedModel = null;
+        updateStatus(null);
+        await api.getModels();
+        renderList();
+      } catch (_) {}
+      els.rsbBtnUnloadModel.textContent = 'Unload';
+    });
+  }
+
+  return { init, renderList, updateStatus };
+})();
 
 // ── rsbStats — System stats + context bar polling ───────────────────────────
 const rsbStats = (() => {
@@ -4253,6 +4421,7 @@ const api = {
                     els.rsbModelStatus.className = 'rsb-model-st offline';
                 }
             }
+            rsbModel?.renderList?.();  // refresh sidebar model list
         } catch(e) { updateStatus(false, "API Error"); }
     },
     updateModelMeta: () => {
@@ -6039,6 +6208,7 @@ const startApp = async () => {
     modePills.init();  // Wire mode pill toggles after toolsUI is ready
     rsbLights.start();
     rsbStats.start();
+    rsbModel.init();
 
     // Initialize Voice UI (async, non-blocking — shows mic if /voice/status available)
     voiceUI.init().catch(e => Logger.debug('Voice', `init error: ${e}`));
