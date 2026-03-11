@@ -12,7 +12,7 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Request, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,64 @@ _debug: bool = False
 _assist_model_file: str = DEFAULT_ASSIST_MODEL_FILE
 
 router = APIRouter(prefix="/assist", tags=["assist"])
+
+
+# ── Direct light control request models ───────────────────────────────────────
+class _BrightnessReq(BaseModel):
+    value: int = Field(..., ge=0, le=100)
+
+class _ColorReq(BaseModel):
+    rgb: list[int] = Field(..., min_length=3, max_length=3)
+
+class _KelvinReq(BaseModel):
+    kelvin: int = Field(..., ge=1000, le=10000)
+
+def _ha_configured() -> bool:
+    return bool(_ha_url and _ha_token and _light_entity)
+
+@router.post("/light/toggle")
+async def light_toggle():
+    if not _ha_configured():
+        raise HTTPException(status_code=503, detail={"error": "HA not configured"})
+    try:
+        await ha_call_service("light", "toggle", {"entity_id": _light_entity})
+        return {"status": "ok"}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail={"error": str(exc)})
+
+@router.post("/light/brightness")
+async def light_brightness(req: _BrightnessReq):
+    if not _ha_configured():
+        raise HTTPException(status_code=503, detail={"error": "HA not configured"})
+    try:
+        brightness_255 = round(req.value / 100 * 255)
+        await ha_call_service("light", "turn_on",
+                              {"entity_id": _light_entity, "brightness": brightness_255})
+        return {"status": "ok"}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail={"error": str(exc)})
+
+@router.post("/light/color")
+async def light_color(req: _ColorReq):
+    if not _ha_configured():
+        raise HTTPException(status_code=503, detail={"error": "HA not configured"})
+    try:
+        await ha_call_service("light", "turn_on",
+                              {"entity_id": _light_entity, "rgb_color": req.rgb})
+        return {"status": "ok"}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail={"error": str(exc)})
+
+@router.post("/light/kelvin")
+async def light_kelvin(req: _KelvinReq):
+    if not _ha_configured():
+        raise HTTPException(status_code=503, detail={"error": "HA not configured"})
+    try:
+        await ha_call_service("light", "turn_on",
+                              {"entity_id": _light_entity, "color_temp_kelvin": req.kelvin})
+        return {"status": "ok"}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail={"error": str(exc)})
 
 
 # ---------------------------------------------------------------------------
