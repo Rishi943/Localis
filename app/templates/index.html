@@ -245,14 +245,6 @@
             <button class="modal-close" id="btn-close-prompt-modal">&times;</button>
         </div>
         <div class="modal-body">
-            <div class="prompt-profiles">
-                <button class="prompt-profile-chip" data-prompt="You are a helpful, concise assistant. Answer directly without unnecessary preamble.">Concise Helper</button>
-                <button class="prompt-profile-chip" data-prompt="You are a senior software engineer. Provide detailed technical explanations with code examples. Prefer clean, idiomatic solutions.">Code Expert</button>
-                <button class="prompt-profile-chip" data-prompt="You are a creative writing partner. Help brainstorm ideas, develop characters, refine prose, and give constructive feedback on writing.">Creative Writer</button>
-                <button class="prompt-profile-chip" data-prompt="You are a research analyst. Provide thorough, well-structured analysis with evidence-based reasoning. Cite your assumptions.">Research Analyst</button>
-                <button class="prompt-profile-chip" data-prompt="You are a patient tutor who explains concepts step-by-step. Use analogies and examples. Check understanding before moving on.">Tutor</button>
-                <button class="prompt-profile-chip" data-prompt="You are a professional editor. Fix grammar, improve clarity, tighten prose, and maintain the author's voice. Explain your changes.">Editor</button>
-            </div>
             <textarea id="system-prompt-modal-editor"
                       class="modal-textarea"
                       placeholder="You are a helpful AI assistant..."
@@ -260,6 +252,12 @@
                       spellcheck="false"></textarea>
             <div class="modal-char-count">
                 <span id="modal-prompt-length">0</span> characters
+            </div>
+            <div class="modal-profile-section">
+              <div class="modal-sec-lbl">Load from profile</div>
+              <div id="modal-profile-tags" class="modal-profile-tags">
+                <!-- Populated by JS from user memory -->
+              </div>
             </div>
         </div>
         <div class="modal-footer">
@@ -387,131 +385,145 @@
 
   </div><!-- /main -->
 
-  <!-- RIGHT SIDEBAR (shell + quick-controls — Task 5 will fill the rail) -->
+  <!-- RIGHT SIDEBAR — Quick Controls -->
   <div id="right-sidebar" class="rsb">
 
-    <!-- Settings panel content (preserved from old #right-sidebar) -->
-    <div class="settings-header">
-      <h2>Configuration</h2>
-      <button class="btn-close" id="btn-close-settings">&times;</button>
+    <!-- Header -->
+    <div class="rsb-head">
+      <svg width="13" height="13" style="color:rgba(255,255,255,.4)"><use href="#ico-settings"/></svg>
+      <span class="rsb-title">Quick Controls</span>
+      <button class="toggle-btn" id="right-sidebar-toggle" aria-label="Collapse sidebar">
+        <svg width="12" height="12"><use href="#ico-right"/></svg>
+      </button>
     </div>
 
-    <div class="settings-content">
-      <div class="setting-group" id="grp-model">
-        <label>Model Selection</label>
-        <select id="model-select"><option>Scanning...</option></select>
-        <!-- MODEL METADATA DISPLAY -->
-        <div id="model-metadata-display">
-          <!-- Populated via JS -->
-        </div>
-        <!-- Button container with Load Model + Folder Icon -->
-        <div class="btn-row">
-          <button type="button" id="btn-load" class="btn-primary">LOAD MODEL</button>
-          <button type="button" id="btn-open-models-dir" class="btn-icon" title="Open models folder">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-            </svg>
-          </button>
-        </div>
-        <button type="button" id="btn-unload" class="btn-full" style="margin-top:8px; background:var(--bg-dark); border:1px solid var(--border-subtle); color:var(--text-secondary);">UNLOAD MODEL</button>
-        <!-- model-status preserved here for JS compat; also in lsb-foot above -->
-        <div id="model-status-sidebar" class="model-status-text">STATUS: OFFLINE</div>
+    <!-- Section 1: LIGHTS -->
+    <div class="rsb-sec" id="rsb-lights-section">
+      <div class="rsb-sec-lbl">
+        <svg width="10" height="10"><use href="#ico-home"/></svg> Lights
       </div>
-
-      <!-- SYSTEM PROMPT EDITOR -->
-      <div class="setting-group" id="grp-system-prompt">
-        <label>System Prompt</label>
-        <button type="button" id="btn-open-prompt-modal" class="btn-full">Edit System Prompt</button>
-      </div>
-      <!-- Hidden textarea for compatibility -->
-      <div style="display:none;">
-        <textarea id="system-prompt-editor"></textarea>
-        <div id="prompt-status"></div>
-      </div>
-
-      <!-- MEMORY MATRIX CONTAINER -->
-      <div id="memory-matrix-container" style="display:none;">
-        <div class="setting-group">
-          <label style="color:#60A5FA;">Memory Matrix</label>
-          <div class="memory-scope-info">
-            <strong>Memory Scope:</strong> Your identity and learned facts are shared globally across all sessions. Only messages are session-specific.
-          </div>
-          <div class="mem-section" id="mem-tier-a">
-            <div class="mem-title">Identity (Tier A)</div>
-            <!-- JS populated -->
-            <div style="font-style:italic; color:rgba(255,255,255,0.2); font-size:0.75rem;">Empty</div>
-          </div>
-          <div class="mem-section" id="mem-tier-b">
-            <div class="mem-title">Interests (Tier B)</div>
-            <div class="mem-tag-container" id="mem-tier-b-tags">
-              <div style="font-style:italic; color:rgba(255,255,255,0.2); font-size:0.75rem;">Empty</div>
-            </div>
-          </div>
-          <button id="btn-refresh-memory" class="btn-full" style="margin-top:12px;">Refresh Memory</button>
-        </div>
-      </div>
-
-      <!-- WEB UPLINK CONTAINER -->
-      <div id="web-uplink-container" style="display:none;">
-        <div class="setting-group">
-          <label style="color:#A78BFA;">Web Uplink</label>
-          <div class="mem-section">
-            <div class="mem-kv"><span class="mem-k">Mode</span> <span class="mem-v" id="disp-web-mode">OFF</span></div>
-            <div class="mem-kv"><span class="mem-k">Provider</span> <span class="mem-v" id="disp-web-provider">AUTO</span></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="setting-group" id="grp-wallpaper">
-        <label>Wallpaper</label>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <input type="file" id="wallpaper-upload" accept="image/png, image/jpeg" style="display:none;">
-          <button class="btn-full" id="btn-wallpaper-upload-trigger">Upload Image</button>
-          <button id="btn-remove-wallpaper" class="btn-full" style="background:#EF4444; color:white; width:auto; padding: 14px 18px;">✖</button>
-        </div>
-        <div style="margin-top:12px;">
-          <div class="row-spread"><label>Opacity</label><span id="val-opacity">10%</span></div>
-          <input type="range" id="slider-opacity" min="0" max="100" value="10">
-        </div>
-      </div>
-
-      <div class="setting-group" id="grp-gpu">
-        <div class="row-spread"><label>GPU Layers</label><input type="number" id="num-layers" value="35" min="0" max="99" style="width:70px;"></div>
-        <input type="range" id="slider-layers" min="0" max="99" value="35">
-      </div>
-
-      <div class="setting-group" id="grp-ctx">
-        <div class="row-spread"><label>Context Size (n_ctx)</label><input type="number" id="num-ctx" value="4096" step="512" style="width:80px;"></div>
-        <input type="range" id="slider-ctx" min="512" max="32768" step="512" value="4096">
-      </div>
-
-      <div class="setting-group" id="grp-temp">
-        <div class="row-spread"><label>Temperature</label><input type="number" id="num-temp" value="0.7" step="0.1" max="2.0" style="width:60px;"></div>
-        <input type="range" id="slider-temp" min="0" max="20" value="7">
-      </div>
-
-      <!-- ACCENT COLOR -->
-      <div class="setting-group" id="grp-accent">
-        <div class="row-spread"><label>Accent Color</label><input type="color" id="picker-accent" value="#ffffff" style="width:60px; height:30px; padding:0; border:none; background:none;"></div>
-      </div>
-
-      <!-- DEV BUTTON (Temporary Reset Tutorial Button) -->
-      <div class="setting-group" style="display:none;">
-        <button id="btn-reset-tutorial" class="btn-full" style="background:#EF4444; color:white; font-size:0.8rem; margin-top: 10px;">[DEV] RESET TUTORIAL</button>
-      </div>
-
-      <div class="setting-group" id="grp-server-control">
-        <label>Server</label>
-        <button type="button" id="btn-stop-server" class="btn-full btn-danger">
-          Stop Server &amp; Export Logs
+      <div class="rsb-light-name">
+        <span id="rsb-lights-name">Rishi Room Light</span>
+        <button class="ltoggle" id="rsb-lights-toggle" aria-label="Toggle light">
+          <div class="ltoggle-k"></div>
         </button>
-        <p id="stop-server-status" class="setting-hint" style="display:none;"></p>
+      </div>
+      <div class="rsb-l-pct" id="rsb-lights-pct">—</div>
+      <div class="rsb-l-ago" id="rsb-lights-ago"></div>
+      <div class="rsb-bulb-outer">
+        <div class="rsb-bulb" id="rsb-bulb">
+          <div class="rsb-bulb-fill" id="rsb-bulb-fill" style="height:0%"></div>
+          <div class="rsb-bulb-line" id="rsb-bulb-line" style="bottom:5px"></div>
+        </div>
+      </div>
+      <div class="rsb-l-ctrls">
+        <button class="rsb-lbtn" id="rsb-btn-power" title="Power">
+          <svg width="14" height="14"><use href="#ico-settings"/></svg>
+        </button>
+        <button class="rsb-lbtn active" id="rsb-btn-brightness" title="Brightness">
+          <svg width="14" height="14"><use href="#ico-temp"/></svg>
+        </button>
+        <button class="rsb-lbtn" id="rsb-btn-color" title="Colour">
+          <svg width="14" height="14"><use href="#ico-memory"/></svg>
+        </button>
+        <button class="rsb-lbtn" id="rsb-btn-kelvin" title="Colour temp">
+          <svg width="14" height="14"><use href="#ico-temp"/></svg>
+        </button>
+      </div>
+      <div id="rsb-swatches" class="rsb-swatches">
+        <button class="rsb-sw" style="background:#f97316" data-color="#f97316"></button>
+        <button class="rsb-sw" style="background:#fdba74" data-color="#fdba74"></button>
+        <button class="rsb-sw" style="background:#fde8d3" data-color="#fde8d3"></button>
+        <button class="rsb-sw" style="background:#f5f5f5" data-color="#f5f5f5"></button>
+        <button class="rsb-sw" style="background:#6366f1" data-color="#6366f1"></button>
+        <button class="rsb-sw" style="background:#a855f7" data-color="#a855f7"></button>
+        <button class="rsb-sw" style="background:#ec4899" data-color="#ec4899"></button>
+        <button class="rsb-sw" style="background:#ef4444" data-color="#ef4444"></button>
       </div>
     </div>
 
-    <!-- Right rail collapsed icon menu (Task 5 will populate) -->
+    <!-- Section 2: MODEL -->
+    <div class="rsb-sec">
+      <div class="rsb-sec-lbl">
+        <svg width="10" height="10"><use href="#ico-model"/></svg> Model
+      </div>
+      <div class="rsb-model-drop">
+        <div>
+          <div id="rsb-model-name" class="rsb-model-name">No model loaded</div>
+          <div id="rsb-model-status" class="rsb-model-st offline">● OFFLINE</div>
+        </div>
+        <span class="rsb-model-arr">▾</span>
+      </div>
+      <div id="rsb-model-chips" class="rsb-model-chips">
+        <!-- Populated by JS from /models -->
+      </div>
+    </div>
+
+    <!-- Section 3: SYSTEM PROMPT -->
+    <div class="rsb-sec">
+      <div class="rsb-sec-lbl">System Prompt</div>
+      <div id="rsb-prompt-presets" class="rsb-presets">
+        <button class="rsb-pchip active" data-preset="default">Default</button>
+        <button class="rsb-pchip" data-preset="creative">Creative</button>
+        <button class="rsb-pchip" data-preset="code">Code</button>
+        <button class="rsb-pchip" data-preset="precise">Precise</button>
+      </div>
+      <button class="rsb-edit-btn" id="btn-edit-prompt-sidebar">
+        Edit System Prompt <span>→</span>
+      </button>
+    </div>
+
+    <!-- Section 4: SYSTEM STATS -->
+    <div class="rsb-sec">
+      <div class="rsb-sec-lbl">System</div>
+      <div class="rsb-stats">
+        <div class="rsb-scard">
+          <div class="rsb-scard-lbl">CPU</div>
+          <div class="rsb-scard-val"><span id="rsb-cpu-val">—</span><span class="rsb-unit">%</span></div>
+          <div class="rsb-sbar"><div id="rsb-cpu-bar" class="rsb-sbar-f rsb-green" style="width:0%"></div></div>
+        </div>
+        <div class="rsb-scard">
+          <div class="rsb-scard-lbl">RAM</div>
+          <div class="rsb-scard-val"><span id="rsb-ram-val">—</span><span class="rsb-unit">G</span></div>
+          <div class="rsb-sbar"><div id="rsb-ram-bar" class="rsb-sbar-f rsb-indigo" style="width:0%"></div></div>
+        </div>
+        <div class="rsb-scard">
+          <div class="rsb-scard-lbl">VRAM</div>
+          <div class="rsb-scard-val"><span id="rsb-vram-val">—</span><span class="rsb-unit">G</span></div>
+          <div class="rsb-sbar"><div id="rsb-vram-bar" class="rsb-sbar-f rsb-amber" style="width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 5: CONTEXT WINDOW -->
+    <div class="rsb-sec rsb-sec-last">
+      <div class="rsb-sec-lbl">Context Window</div>
+      <div class="rsb-ctx">
+        <div id="rsb-ctx-ascii" class="rsb-ctx-ascii">░░░░░░░░░░░░░░░░░░░░</div>
+        <div class="rsb-ctx-meta">
+          <span id="rsb-ctx-tokens">0 / — tokens</span>
+          <span id="rsb-ctx-pct" class="rsb-ctx-pct">0%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Collapsed icon rail (shown when sidebar is collapsed) -->
     <div id="right-rail" class="rsb-rail hidden">
-      <!-- Will be populated in Task 5 -->
+      <button class="toggle-btn" id="right-rail-toggle" aria-label="Expand sidebar">
+        <svg width="12" height="12"><use href="#ico-left"/></svg>
+      </button>
+      <div class="rsb-rail-icon" title="Model">
+        <svg width="15" height="15"><use href="#ico-model"/></svg>
+      </div>
+      <div class="rsb-rail-icon" title="Temperature">
+        <svg width="15" height="15"><use href="#ico-temp"/></svg>
+      </div>
+      <div class="rsb-rail-icon" title="Memory">
+        <svg width="15" height="15"><use href="#ico-memory"/></svg>
+      </div>
+      <div class="rsb-rail-icon" title="Settings">
+        <svg width="15" height="15"><use href="#ico-settings"/></svg>
+      </div>
     </div>
 
   </div><!-- /right-sidebar -->
@@ -611,6 +623,40 @@
     <button id="btn-save-prompt"></button>
     <button id="btn-reset-prompt"></button>
     <button id="btn-right-sidebar-toggle"></button>
+    <!-- Old right-sidebar IDs preserved for JS compatibility -->
+    <button id="btn-close-settings"></button>
+    <select id="model-select"><option>Scanning...</option></select>
+    <div id="model-metadata-display"></div>
+    <button id="btn-load"></button>
+    <button id="btn-unload"></button>
+    <button id="btn-open-models-dir"></button>
+    <button id="btn-open-prompt-modal"></button>
+    <textarea id="system-prompt-editor"></textarea>
+    <div id="prompt-status"></div>
+    <div id="memory-matrix-container">
+      <div class="mem-section" id="mem-tier-a"></div>
+      <div class="mem-tag-container" id="mem-tier-b-tags"></div>
+      <button id="btn-refresh-memory"></button>
+    </div>
+    <div id="web-uplink-container">
+      <span id="disp-web-mode">OFF</span>
+      <span id="disp-web-provider">AUTO</span>
+    </div>
+    <input type="file" id="wallpaper-upload" accept="image/png, image/jpeg">
+    <button id="btn-wallpaper-upload-trigger"></button>
+    <button id="btn-remove-wallpaper"></button>
+    <input type="range" id="slider-opacity" min="0" max="100" value="10">
+    <span id="val-opacity">10%</span>
+    <input type="number" id="num-layers" value="35" min="0" max="99">
+    <input type="range" id="slider-layers" min="0" max="99" value="35">
+    <input type="number" id="num-ctx" value="4096" step="512">
+    <input type="range" id="slider-ctx" min="512" max="32768" step="512" value="4096">
+    <input type="number" id="num-temp" value="0.7" step="0.1" max="2.0">
+    <input type="range" id="slider-temp" min="0" max="20" value="7">
+    <input type="color" id="picker-accent" value="#ffffff">
+    <button id="btn-reset-tutorial"></button>
+    <button id="btn-stop-server"></button>
+    <p id="stop-server-status"></p>
   </div>
 
 </div>
