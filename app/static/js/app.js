@@ -4224,6 +4224,7 @@ const api = {
             const res = await fetch('/models');
             const data = await res.json();
             state.availableModels = data.models;
+            state.currentModel = data.current || null;   // track loaded model name
             els.modelSelect.innerHTML = '';
             data.models.forEach(m => {
                 const opt = document.createElement('option');
@@ -4237,9 +4238,20 @@ const api = {
                 updateStatus(true, "Connected");
                 const welcome = document.querySelector('.welcome-container');
                 if (welcome) welcome.remove();
+                // Update right sidebar model status
+                if (els.rsbModelName) els.rsbModelName.textContent = data.current;
+                if (els.rsbModelStatus) {
+                    els.rsbModelStatus.textContent = '● ONLINE';
+                    els.rsbModelStatus.className = 'rsb-model-st online';
+                }
             } else {
                 state.modelLoaded = false;
                 updateStatus(false, "No Model");
+                if (els.rsbModelName) els.rsbModelName.textContent = 'No model loaded';
+                if (els.rsbModelStatus) {
+                    els.rsbModelStatus.textContent = '● OFFLINE';
+                    els.rsbModelStatus.className = 'rsb-model-st offline';
+                }
             }
         } catch(e) { updateStatus(false, "API Error"); }
     },
@@ -5987,6 +5999,8 @@ const startApp = async () => {
     // Always fetch state/models first
     await api.getModels();
     let appState = await api.getAppState();
+
+    if (appState.n_ctx) state.nCtx = appState.n_ctx;
 
     // Enable debug logging based on backend flag
     Logger.setEnabled(appState.debug === true);

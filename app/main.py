@@ -501,7 +501,9 @@ async def get_app_state():
         "defaults": defaults,
         "current_model": current_model_name,
         "models_dir_exists": MODELS_DIR.exists(),
-        "debug": DEBUG  # Expose debug flag to frontend
+        "debug": DEBUG,  # Expose debug flag to frontend
+        "n_ctx": (current_model.n_ctx if current_model and hasattr(current_model, 'n_ctx')
+                  else int(database.get_app_setting('n_ctx') or 8192)),
     }
 
 
