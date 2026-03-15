@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-A Finance panel accessible from the RSB icon strip that opens a full-screen view with two tabs: **Dashboard** (glass CSS charts showing spending data) and **Chat** (LLM conversation about finances). Users upload CIBC bank statement CSVs, which are parsed into SQLite and analysed with deterministic SQL. The LLM is used in two places only: (1) guided goal-setting onboarding via the existing Narrator/FRT system, and (2) answering natural language questions in the Chat tab using SQL-generated context. No cloud, no RAG over raw CSV, no LLM categorisation.
+A Finance panel accessible from a new RSB icon that opens a full-panel view with two tabs: **Dashboard** (glass CSS charts from deterministic SQL) and **Chat** (LLM conversation with SQL-injected context). Users upload CIBC bank statement CSVs (chequing and credit card), parsed into SQLite. LLM is used in two places only: (1) a fresh purpose-built goal-setting onboarding conversation (chat-style, skippable), and (2) natural language Q&A in the Chat tab. No cloud, no RAG over raw CSV, no LLM categorisation. All numbers come from SQL.
 
 </domain>
 
@@ -14,86 +14,103 @@ A Finance panel accessible from the RSB icon strip that opens a full-screen view
 ## Implementation Decisions
 
 ### Entry point and layout
-- Finance panel is triggered from an RSB icon (new icon in the right sidebar icon strip)
-- Opens as a full-panel view (replaces/overlays main content area, like a dedicated section)
-- Two tabs inside the panel: **Dashboard** and **Chat**
-- Dashboard is default landing tab after onboarding completes
+- New icon in the RSB icon strip opens the Finance panel
+- Full-panel overlay replacing the main chat area (similar to how tutorial overlays work)
+- Two tabs: **Dashboard** (default after onboarding) and **Chat**
+- Finance panel accessible without model loaded (dashboard is SQL-only)
 
 ### Onboarding flow
-- Runs the first time the Finance panel is opened (one-time, stored completion flag in app_settings)
-- Uses the existing Narrator/FRT system — same conversational onboarding mechanism as the tutorial
-- Questions cover:
-  - Primary financial goal: save money, invest, or a mix
-  - Short-term vs long-term orientation
-  - Specific life events they're saving toward (vacation, wedding, house purchase, emergency fund, etc.) — user can say "none" or "not sure yet"
-  - Monthly budget per spending category (Food, Transport, Shopping, Utilities, Entertainment, Other)
-  - Approximate time horizon for their goals (months or years)
-- All answers persist to a new SQLite table (`fin_goals` or similar) — not to the existing memory system
-- Goal is to make the user *think* about their finances, not to enforce rigid targets — soft, conversational tone
-- After onboarding completes, user is dropped into the Dashboard tab
+- Fresh purpose-built conversational onboarding — NOT the FRT/Narrator state machine (build new)
+- Same concept as FRT: chat-style, step by step, warm reflective tone
+- **Skippable** — user can skip straight to Dashboard at any time; skip shows empty state with subtle "Set up your goals" prompt
+- **Re-runnable** — "Reset goals" button in the panel resets `fin_goals` and re-triggers onboarding
+- Questions (conversational, not a form):
+  1. Primary goal: save money / invest / mix / not sure yet
+  2. Life events they're planning toward: vacation, wedding, house, emergency fund, none/unsure
+  3. Monthly budget per category (Food, Transport, Shopping, Utilities, Entertainment, Other) — can enter 0 or skip any
+  4. Time horizon: months or years (open-ended)
+- Tone: reflective, not prescriptive — "What are you saving toward?" not "Set your savings target"
+- Completion flag stored in `app_settings` as `fin_onboarding_done`
+- All answers persist to `fin_goals` SQLite table
+
+### CSV formats (exact, no headers in either file)
+
+**CIBC Chequing — 4 columns (tab/comma separated, all amounts positive):**
+`Date | Description | Debit | Credit`
+- Debit = money out (spending)
+- Credit = money in (income, transfers, refunds)
+- Empty Debit cell = Credit transaction; empty Credit cell = Debit transaction
+
+**CIBC Credit Card — 5 columns (no headers, all amounts positive):**
+`Date | Description (includes foreign currency inline e.g. "399.00 INR @ .015187") | CAD Amount | [blank] | Masked card number`
+- All non-blank rows are spending (debits); credits = card payments (show in list, don't count toward spend totals)
+- Foreign currency transactions: parse CAD amount only (column 3); foreign details are in description text
 
 ### CSV upload and parsing
-- CIBC bank statement CSV format only (v1)
-- User specifies the time period the file covers when uploading (month/year picker or free text like "Jan 2026")
-- Transactions parsed into a SQLite table: `fin_transactions` with columns: date, description, amount, category, period_label, account_tag
-- Multiple uploads accumulate — each tagged with the user-specified period label
-- User can upload one month at a time or multiple months in one file
-- No deduplication strategy defined yet — Claude's discretion (e.g., unique constraint on date+description+amount)
+- Both CIBC chequing and CIBC credit card CSVs supported
+- Parser detects account type by column count (4 = chequing, 5 = credit card)
+- User specifies the time period label on upload (free text: "Jan 2026", "Q1 2026", etc.)
+- Parsed into `fin_transactions` with: date, description, amount, type (debit/credit), category, period_label, account_type
+- Multiple uploads accumulate; each tagged with period label
+- Deduplication: unique constraint on (date, description, amount, account_type) — silent skip on duplicate
 
 ### Categorisation
 - Predefined fixed categories: Food, Transport, Shopping, Utilities, Entertainment, Other
-- Categorisation is fully deterministic — keyword/merchant matching rules, no LLM
-- Rules defined in a Python dict or JSON config (Claude's discretion on exact implementation)
-- Unmatched transactions fall into "Other"
-- No user re-categorisation in v1 (deferred to v2)
+- Fully deterministic keyword/merchant matching on Description field — no LLM
+- Rules in a Python dict (Claude's discretion on exact merchant list — aim for common Canadian merchants)
+- Unmatched → "Other"
+- No user re-categorisation in v1
 
-### Dashboard charts
-- Pure CSS charts — no Chart.js or other JS charting library
-- Midnight Glass aesthetic: `backdrop-filter: blur`, glass surfaces, `--black-0/1/2/3` palette, `--accent-primary: #5A8CFF`
-- Chart types to include:
-  1. **Category breakdown** — horizontal bar chart (% and $ per category) with glass bars
-  2. **Budget vs actual** — side-by-side bars per category (budget amount vs actual spend), glass styled
-  3. **Monthly trend** — horizontal sparkline-style bars showing total spend per month
-  4. **Transaction list** — scrollable table, ghost scrollbar, alternating row glass tint
-- All data from SQL queries — no LLM touches these numbers
-- Charts should feel alive: CSS transitions on bar fill, subtle glow on the dominant category bar
-- Dashboard updates on every CSV upload without page reload
+### Dashboard — period selector and charts
+- **Period selector dropdown** at top of Dashboard: options are all uploaded period labels + "All time"
+- Default view: "All time" aggregate OR latest upload if only one exists
+- Pure CSS charts — no Chart.js or external library
+- Midnight Glass aesthetic: `backdrop-filter`, glass bars, `--accent-primary: #5A8CFF`, CSS transitions on bar fill, subtle accent glow on dominant bar
+- Chart types:
+  1. **Category breakdown** — horizontal glass bars, % and $ per category (debits only)
+  2. **Budget vs actual** — side-by-side bars per category; if no budgets set, show actual only with a subtle "Set budgets →" ghost button
+  3. **Monthly trend** — sparkline-style horizontal bars, one per uploaded period
+  4. **Transaction list** — scrollable table, ghost scrollbar, alternating glass row tint; all transactions shown (debits AND credits); credits labeled green with "↑ Credit" tag
 
-### LLM chat (Chat tab)
-- Standard chat UI (reuses existing chat rendering pipeline where possible)
-- LLM receives SQL-generated context injected into system prompt, e.g.:
-  - Total spend per category for selected period
-  - Top 5 merchants
-  - Budget vs actual summary
-  - User's stated goals from onboarding
-- User's raw transactions are NOT passed to the LLM — only aggregated SQL summaries
-- Chat is finance-scoped: responses should acknowledge the user's goals when relevant
-- Uses the main inference model (no separate fine-tuned model needed)
+### No-budget state
+- If user skipped onboarding (no budgets in `fin_goals`): budget vs actual chart shows actual spend bars only
+- Subtle ghost prompt: "Set up your goals to see budget tracking →" — not a blocking banner
 
-### Data model (new SQLite tables)
-- `fin_goals` — stores onboarding answers (goal type, life events, category budgets, horizon)
-- `fin_transactions` — stores parsed transactions (date, description, amount, category, period_label)
-- `fin_uploads` — tracks each CSV upload (filename, period_label, uploaded_at, row_count)
-- Claude's discretion on exact schema column names and types
+### LLM Chat tab
+- Reuses existing chat rendering pipeline (`buildMessageHTML`, `appendMessage`)
+- LLM receives SQL-generated context injected into system prompt:
+  - Spend per category for the period the user mentioned (SQL filtered by period)
+  - Top 5 merchants for that period
+  - Budget vs actual summary (if goals set)
+  - User's stated goals and life events from `fin_goals`
+- Raw transaction rows NOT passed to LLM — aggregated summaries only
+- When user mentions a specific period ("last month", "January"), SQL context is filtered to that period
+- Uses main inference model
+
+### Data model
+- `fin_goals` — goal_type, life_events (JSON array), budgets (JSON dict: category→amount), horizon, created_at
+- `fin_transactions` — date, description, amount, type (debit/credit), category, period_label, account_type, upload_id
+- `fin_uploads` — id, filename, period_label, account_type, uploaded_at, row_count
 
 ### Claude's Discretion
-- Exact CIBC CSV column mapping (headers vary slightly between CIBC account types — researcher to verify)
-- Keyword/merchant matching rules for categorisation
-- Deduplication strategy for overlapping uploads
-- Exact SQL queries for dashboard metrics
+- Exact Python keyword/merchant rules for categorisation
+- SQL queries for each dashboard metric
+- Finance onboarding conversation script (questions, responses, branching)
 - System prompt template for finance chat context injection
-- Whether the Finance panel is a route/section or a modal overlay
+- Panel open/close animation (slide or fade)
+- Exact deduplication behaviour on overlapping period uploads
 
 </decisions>
 
 <specifics>
 ## Specific Ideas
 
-- "The LLM is only used for onboarding and chat — all numbers are SQL" — this is a hard constraint, not a preference
-- Onboarding tone should be reflective and encouraging, not prescriptive: "What are you saving toward?" not "Set your savings target"
-- Dashboard should feel like a premium personal finance app — glass bars with accent glow, not plain HTML tables
-- The goal-setting conversation doesn't need to be perfectly structured — it's okay if the user says "I don't know yet" — the point is to prompt reflection
-- "Can combine multiple uploads" — e.g. upload Jan, Feb, Mar separately and see a 3-month trend
+- "All numbers are SQL" is a hard constraint — not negotiable
+- Onboarding is a fresh build, not FRT reuse — more polished, purpose-built for finance
+- Dashboard feels like a premium personal finance app — glass bars with glow, not plain tables
+- Credit card CSV: foreign currency details are in the description string — only parse the CAD amount column
+- Chequing: detect debit vs credit by which of the two amount columns is non-empty
+- User confirmed they have both chequing and credit card CSVs to share for testing
 
 </specifics>
 
@@ -101,41 +118,40 @@ A Finance panel accessible from the RSB icon strip that opens a full-screen view
 ## Existing Code Insights
 
 ### Reusable Assets
-- `app_settings` DB table + `get_app_setting`/`set_app_setting` — use for onboarding completion flag (`fin_onboarding_done`)
-- Narrator/FRT system (`FRT` state machine in `app.js`) — existing first-run tutorial mechanism; Finance onboarding reuses same pattern
-- `register_*()` router registration pattern (`app/rag.py`, `app/setup_wizard.py`) — Finance feature follows this: `app/finance.py` with `register_finance(app, ...)`
-- SSE streaming pattern (already in RAG ingest) — reuse for CSV parse progress if needed
-- Chat rendering pipeline (`buildMessageHTML`, `appendMessage`) — Chat tab reuses existing message rendering
-- Glass CSS variables (`--bg-panel`, `--glass-filter`, `--border-highlight`, `--accent-primary`) — Dashboard charts use these directly
+- `app_settings` + `get_app_setting`/`set_app_setting` — onboarding completion flag (`fin_onboarding_done`)
+- `register_*()` pattern — `app/finance.py` with `register_finance(app, db_path)`
+- Chat rendering pipeline — Chat tab reuses `buildMessageHTML`, `appendMessage`
+- Glass CSS variables — Dashboard uses `--bg-panel`, `--glass-filter`, `--border-highlight`, `--accent-primary` directly
+- Ghost scrollbar CSS — transaction list reuses existing ghost scrollbar recipe
+- SSE pattern — reuse for CSV parse progress feedback if file is large
 
 ### Established Patterns
-- Module IIFE pattern in `app.js` (ragUI, voiceUI, wakewordUI) — Finance panel JS follows same pattern: `financeUI = (function() { ... })()`
-- `database.py` schema init in `init_db()` — new `fin_*` tables added here with `CREATE TABLE IF NOT EXISTS`
-- FastAPI router prefix: `/finance` with tag `finance`
-- All DB operations use `database.DB_NAME` path
+- IIFE module in `app.js`: `const financeUI = (function() { ... })()`
+- `init_db()` in `database.py`: add `fin_*` tables with `CREATE TABLE IF NOT EXISTS`
+- FastAPI router: prefix `/finance`, tag `finance`
+- All DB ops use `database.DB_NAME`
 
 ### Integration Points
-- RSB icon strip (right sidebar) — needs a new Finance icon SVG `<symbol>` and click handler
-- Left sidebar nav or RSB icon: click triggers `financeUI.open()` which renders the Finance panel
-- Main content area: Finance panel overlays or replaces the chat zone (similar to how tutorial overlays work)
-- `startApp()` in `app.js`: call `financeUI.init()` after model load or unconditionally (Finance doesn't need a model loaded to show the dashboard)
-- `init_db()` in `database.py`: add `fin_transactions`, `fin_goals`, `fin_uploads` table creation
+- RSB icon strip: new Finance SVG `<symbol>` + click → `financeUI.open()`
+- `startApp()`: call `financeUI.init()` unconditionally (no model needed for dashboard)
+- `init_db()`: create `fin_transactions`, `fin_goals`, `fin_uploads`
+- Main content area: Finance panel overlays `#chat-zone` (z-index or display toggle)
 
 </code_context>
 
 <deferred>
 ## Deferred Ideas
 
-- OFX / QFX format support — v2 (FIN-V2-01)
-- PDF bank statement support — v2 (FIN-V2-02)
-- User re-categorisation of individual transactions — v2 (FIN-V2-04)
-- Month-over-month trend chart with % change — could fold into v1 dashboard if simple
+- OFX / QFX format support — v2
+- PDF bank statement support — v2
+- User re-categorisation of individual transactions — v2
 - Export dashboard as PDF/image — post-v1
-- Multiple bank accounts with separate tracking — post-v1 (v1 accumulates all into one pool)
+- Multiple bank accounts tracked separately — post-v1
+- Month-over-month % change trend — post-v1
 
 </deferred>
 
 ---
 
 *Phase: 02-financial-advisor*
-*Context gathered: 2026-03-15*
+*Context gathered: 2026-03-15 (updated after assumptions review)*
