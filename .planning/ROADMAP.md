@@ -51,7 +51,16 @@ Plans:
   4. The Dashboard tab shows glass CSS charts: category spend breakdown, budget vs actual per category, monthly trend, and a scrollable transaction list — all numbers from SQL queries, not the LLM
   5. Multiple CSV uploads (e.g. 6 months one by one) accumulate correctly — each tagged with its user-defined time period — and the dashboard aggregates across all uploaded periods
   6. The Chat tab lets the user ask natural language questions about their spending; the LLM receives SQL-generated context (not raw CSV) and answers accurately
-**Plans**: TBD
+**Plans**: 7 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Test scaffold (Wave 0): conftest.py + 5 test files for FIN-01..06, all RED
+- [ ] 02-02-PLAN.md — Backend foundation: fin_* DB tables, CSV parsers, categoriser, upload/status endpoints
+- [ ] 02-03-PLAN.md — Frontend shell: Finance panel HTML overlay + all .fin-* CSS with glass recipe
+- [ ] 02-04-PLAN.md — Wiring: goals API endpoints, main.py registration, financeUI IIFE with open/close/tabs
+- [ ] 02-05-PLAN.md — Dashboard + onboarding: _loadDashboard() with 4 chart renderers, _startOnboarding() step machine
+- [ ] 02-06-PLAN.md — Finance chat: POST /finance/chat SSE with SQL context injection, frontend streaming handler
+- [ ] 02-07-PLAN.md — Human verification checkpoint: all 6 FIN requirements signed off
 
 ### Phase 3: LAB
 **Goal**: Users can tune model inference parameters through the UI and have those settings persist across sessions, giving students and power users full control without editing config files
@@ -107,7 +116,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. UI Polish | 6/6 | Complete | 2026-03-15 |
-| 2. Financial Advisor | 0/TBD | Not started | - |
+| 2. Financial Advisor | 0/7 | Planning complete | - |
 | 3. LAB | 0/TBD | Not started | - |
 | 4. News RSS Feed | 0/TBD | Not started | - |
 | 5. YouTube Music via HA | 0/TBD | Not started | - |
