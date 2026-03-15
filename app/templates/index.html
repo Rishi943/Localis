@@ -398,6 +398,7 @@
     <div id="rsb-body" class="rsb-body">
 
     <!-- Section 1: LIGHTS -->
+    <div class="rsb-section-label">Lights</div>
     <div class="rsb-sec" id="rsb-sec-lights">
       <div class="rsb-sec-lbl">
         <svg width="10" height="10"><use href="#ico-home"/></svg> Lights
@@ -474,7 +475,9 @@
       </div>
     </div>
 
+    <hr class="rsb-divider">
     <!-- Section 2: MODEL -->
+    <div class="rsb-section-label">Model</div>
     <div class="rsb-sec" id="rsb-sec-model">
       <div class="rsb-sec-lbl">
         <svg width="10" height="10"><use href="#ico-model"/></svg> Model
@@ -497,40 +500,55 @@
       </div>
     </div>
 
+    <hr class="rsb-divider">
     <!-- Section 3: SYSTEM PROMPT -->
+    <div class="rsb-section-label">Prompt</div>
     <div class="rsb-sec" id="rsb-sec-prompt">
       <div class="rsb-sec-lbl">System Prompt</div>
       <div id="rsb-prompt-presets" class="rsb-presets">
         <button class="rsb-pchip active" data-preset="default">Default</button>
         <button class="rsb-pchip" data-preset="creative">Creative</button>
-        <button class="rsb-pchip" data-preset="code">Code</button>
-        <button class="rsb-pchip" data-preset="precise">Precise</button>
+        <button class="rsb-pchip" data-preset="planning">Planning</button>
+        <button class="rsb-pchip" data-preset="custom">Custom</button>
       </div>
       <button class="rsb-edit-btn" id="btn-edit-prompt-sidebar">
         Edit System Prompt <span>→</span>
       </button>
     </div>
 
+    <hr class="rsb-divider">
     <!-- Section 4: SYSTEM STATS -->
+    <div class="rsb-section-label">Stats</div>
     <div class="rsb-sec rsb-sec-last" id="rsb-sec-stats">
-      <div class="rsb-sec-lbl">System</div>
-      <div class="rsb-stats">
-        <div class="rsb-scard">
-          <div class="rsb-scard-lbl">CPU</div>
-          <div class="rsb-scard-val"><span id="rsb-cpu-val">—</span><span class="rsb-unit">%</span></div>
-          <div class="rsb-sbar"><div id="rsb-cpu-bar" class="rsb-sbar-f rsb-green" style="width:0%"></div></div>
+      <!-- Compact stat rows (one row per metric) -->
+      <div class="stat-row">
+        <span class="stat-label">CPU</span>
+        <div class="stat-bar-wrap">
+          <div class="stat-bar rsb-green" id="stat-bar-cpu" style="width:0%"></div>
         </div>
-        <div class="rsb-scard">
-          <div class="rsb-scard-lbl">RAM</div>
-          <div class="rsb-scard-val"><span id="rsb-ram-val">—</span><span class="rsb-unit">G</span></div>
-          <div class="rsb-sbar"><div id="rsb-ram-bar" class="rsb-sbar-f rsb-indigo" style="width:0%"></div></div>
-        </div>
-        <div class="rsb-scard">
-          <div class="rsb-scard-lbl">VRAM</div>
-          <div class="rsb-scard-val"><span id="rsb-vram-val">—</span><span class="rsb-unit">G</span></div>
-          <div class="rsb-sbar"><div id="rsb-vram-bar" class="rsb-sbar-f rsb-amber" style="width:0%"></div></div>
-        </div>
+        <span class="stat-value" id="stat-bar-cpu-val">—</span>
       </div>
+      <div class="stat-row">
+        <span class="stat-label">RAM</span>
+        <div class="stat-bar-wrap">
+          <div class="stat-bar rsb-indigo" id="stat-bar-ram" style="width:0%"></div>
+        </div>
+        <span class="stat-value" id="stat-bar-ram-val">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">VRAM</span>
+        <div class="stat-bar-wrap">
+          <div class="stat-bar rsb-amber" id="stat-bar-vram" style="width:0%"></div>
+        </div>
+        <span class="stat-value" id="stat-bar-vram-val">—</span>
+      </div>
+      <!-- Hidden legacy elements preserved for JS compatibility -->
+      <span id="rsb-cpu-val" style="display:none">—</span>
+      <div id="rsb-cpu-bar" class="rsb-sbar-f rsb-green" style="display:none;width:0%"></div>
+      <span id="rsb-ram-val" style="display:none">—</span>
+      <div id="rsb-ram-bar" class="rsb-sbar-f rsb-indigo" style="display:none;width:0%"></div>
+      <span id="rsb-vram-val" style="display:none">—</span>
+      <div id="rsb-vram-bar" class="rsb-sbar-f rsb-amber" style="display:none;width:0%"></div>
     </div>
 
 

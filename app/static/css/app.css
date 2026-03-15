@@ -842,3 +842,16 @@ body.app-ready #frt-overlay { display: none !important; }
 /* ── Tool chips (inline, beside input) ── */
 .tool-chip { font-size: 12px; padding: 3px 10px; border-radius: var(--r-sm); background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-secondary); cursor: pointer; transition: background .15s; }
 .tool-chip.active { background: var(--accent-soft); border-color: var(--accent-border); color: var(--accent-primary); }
+
+/* ── Compact stat rows (RSB Stats section) ── */
+.stat-row { display: flex; align-items: center; gap: 8px; padding: 4px 16px; }
+.stat-label { font-size: 11px; color: var(--text-muted); width: 40px; flex-shrink: 0; }
+.stat-bar-wrap { flex: 1; height: 3px; background: var(--card-border); border-radius: 2px; overflow: hidden; }
+.stat-bar { height: 3px; border-radius: 2px; transition: width .5s ease; }
+.stat-value { font-size: 11px; color: var(--text-secondary); width: 36px; text-align: right; flex-shrink: 0; font-family: var(--font-mono); }
+
+/* ── Date group separators (chat history) ── */
+.date-separator { text-align: center; font-size: 11px; color: var(--text-muted); padding: 12px 0 4px; user-select: none; }
+
+/* ── LSB nav label — hide text only on collapse ── */
+.lsb.collapsed .lsb-nav-label { display: none; }
