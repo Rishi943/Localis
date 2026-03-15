@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01-ui-polish/01-04-PLAN.md
-last_updated: "2026-03-15T10:43:05.616Z"
+stopped_at: Completed 01-ui-polish/01-05-PLAN.md
+last_updated: "2026-03-15T10:50:05.388Z"
 last_activity: 2026-03-14 — Roadmap created; 25 v1 requirements mapped across 6 phases
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -54,6 +54,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01-ui-polish P01 | 25 | 3 tasks | 2 files |
 | Phase 01-ui-polish P03 | 7 | 2 tasks | 3 files |
 | Phase 01-ui-polish P04 | 12 | 2 tasks | 3 files |
+| Phase 01-ui-polish P05 | 4 | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,9 @@ Recent decisions affecting current work:
 - [Phase 01-ui-polish]: Preset chips renamed code->planning and precise->custom to match canonical 4 profiles
 - [Phase 01-ui-polish]: Hey Jarvis wakeword trigger phrases preserved unchanged; only assistant name labels renamed to Localis
 - [Phase 01-ui-polish]: Legacy rsb-cpu/ram/vram-bar IDs hidden (display:none) for JS compatibility; new stat-bar-* IDs drive visible compact rows
+- [Phase 01-ui-polish]: GET /api/settings added from scratch (did not exist); all 6 settings fields in both GET and POST handlers
+- [Phase 01-ui-polish]: PROFILE_MAP replaces old inline PRESETS in RSB chip handler — single source of truth for 4 canonical profiles (default/custom/creative/planning)
+- [Phase 01-ui-polish]: setActiveProfile() is the single bridge function between RSB chips and settings modal profile chips
 
 ### Pending Todos
 
@@ -89,6 +93,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T10:43:05.614Z
-Stopped at: Completed 01-ui-polish/01-04-PLAN.md
+Last session: 2026-03-15T10:50:05.386Z
+Stopped at: Completed 01-ui-polish/01-05-PLAN.md
 Resume file: None
