@@ -16,12 +16,12 @@ Requirements for the active feature build cycle. Adds to the existing shipped ba
 
 ### Financial Advisor
 
-- [ ] **FIN-01**: First time the Finance panel opens, the Narrator/FRT onboarding flow runs — user is guided to articulate financial goals (save, invest, life events such as vacation/wedding/house), monthly budgets per category, and time horizon; all answers persist to SQLite
-- [ ] **FIN-02**: User can upload a CIBC bank statement CSV, specify the time period it covers, and have all transactions parsed into a SQLite transactions table — no data leaves the device
-- [ ] **FIN-03**: App auto-categorises transactions into predefined categories (Food, Transport, Shopping, Utilities, Entertainment, Other) via deterministic rules — no LLM involved in categorisation
+- [x] **FIN-01**: First time the Finance panel opens, the Narrator/FRT onboarding flow runs — user is guided to articulate financial goals (save, invest, life events such as vacation/wedding/house), monthly budgets per category, and time horizon; all answers persist to SQLite
+- [x] **FIN-02**: User can upload a CIBC bank statement CSV, specify the time period it covers, and have all transactions parsed into a SQLite transactions table — no data leaves the device
+- [x] **FIN-03**: App auto-categorises transactions into predefined categories (Food, Transport, Shopping, Utilities, Entertainment, Other) via deterministic rules — no LLM involved in categorisation
 - [ ] **FIN-04**: Dashboard tab shows glass CSS charts: category spend breakdown, budget vs actual per category, monthly trend, and a scrollable transaction list — all numbers from SQL queries
-- [ ] **FIN-05**: Multiple CSV uploads accumulate correctly, each tagged with its user-defined time period; dashboard aggregates across all uploaded periods
-- [ ] **FIN-06**: Chat tab lets the user ask natural language questions about their spending; LLM receives SQL-generated context (not raw CSV) and answers accurately
+- [x] **FIN-05**: Multiple CSV uploads accumulate correctly, each tagged with its user-defined time period; dashboard aggregates across all uploaded periods
+- [x] **FIN-06**: Chat tab lets the user ask natural language questions about their spending; LLM receives SQL-generated context (not raw CSV) and answers accurately
 
 ### LAB (Model Parameter Playground)
 
@@ -105,12 +105,12 @@ Which phases cover which requirements. Updated after phase reorder (2026-03-15).
 | UI-02 | Phase 1 | Complete |
 | UI-03 | Phase 1 | Complete |
 | UI-04 | Phase 1 | Complete |
-| FIN-01 | Phase 2 | Pending |
-| FIN-02 | Phase 2 | Pending |
-| FIN-03 | Phase 2 | Pending |
+| FIN-01 | Phase 2 | Complete |
+| FIN-02 | Phase 2 | Complete |
+| FIN-03 | Phase 2 | Complete |
 | FIN-04 | Phase 2 | Pending |
-| FIN-05 | Phase 2 | Pending |
-| FIN-06 | Phase 2 | Pending |
+| FIN-05 | Phase 2 | Complete |
+| FIN-06 | Phase 2 | Complete |
 | LAB-01 | Phase 3 | Pending |
 | LAB-02 | Phase 3 | Pending |
 | LAB-03 | Phase 3 | Pending |
