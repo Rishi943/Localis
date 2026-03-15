@@ -267,6 +267,43 @@ def init_db():
         )
     """)
 
+    # 8. Finance Tables (Phase 2)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS fin_uploads (
+            id TEXT PRIMARY KEY,
+            filename TEXT NOT NULL,
+            period_label TEXT NOT NULL,
+            account_type TEXT NOT NULL,
+            uploaded_at TEXT NOT NULL,
+            row_count INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS fin_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            upload_id TEXT NOT NULL,
+            date TEXT NOT NULL,
+            description TEXT NOT NULL,
+            amount REAL NOT NULL,
+            type TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT 'Other',
+            period_label TEXT NOT NULL,
+            account_type TEXT NOT NULL,
+            FOREIGN KEY(upload_id) REFERENCES fin_uploads(id),
+            UNIQUE (date, description, amount, account_type)
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS fin_goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            goal_type TEXT,
+            life_events TEXT,
+            budgets TEXT,
+            horizon TEXT,
+            created_at TEXT NOT NULL
+        )
+    """)
+
     # Seed tutorial flag ONLY if this is a fresh install (or recreated after backup)
     if is_new_db:
         now = datetime.utcnow().isoformat()
