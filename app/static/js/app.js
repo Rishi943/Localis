@@ -130,12 +130,15 @@ async function readSSE(response, onData) {
 }
 
 // --- THINKING BLOCK PARSER ---
+// Handles both <thinking> and <think> tag formats.
+// Returns an object for backward-compat AND a pre-rendered HTML helper.
 function parseThinking(text) {
-    const thinkingRegex = /<thinking>([\s\S]*?)<\/thinking>/g;
+    const thinkingRegex = /<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>/gi;
     const blocks = [];
     let match;
+    const regexCopy = new RegExp(thinkingRegex.source, thinkingRegex.flags);
 
-    while ((match = thinkingRegex.exec(text)) !== null) {
+    while ((match = regexCopy.exec(text)) !== null) {
         blocks.push({
             fullMatch: match[0],
             content: match[1].trim(),
@@ -147,8 +150,16 @@ function parseThinking(text) {
     return {
         hasThinking: blocks.length > 0,
         blocks: blocks,
-        textWithoutThinking: text.replace(thinkingRegex, '')
+        textWithoutThinking: text.replace(new RegExp(thinkingRegex.source, thinkingRegex.flags), '')
     };
+}
+
+// Render thinking blocks as collapsible pills (used in final render step).
+function renderThinkingPills(text) {
+    return text.replace(/<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>/gi, (_, content) => {
+        const id = 'think-' + Math.random().toString(36).slice(2, 8);
+        return `<div class="thinking-pill" onclick="document.getElementById('${id}').classList.toggle('expanded')">&#9658; Thinking...</div><div class="thinking-body" id="${id}">${escapeHtml(content.trim())}</div>`;
+    });
 }
 
 // --- UX HELPERS ---
@@ -802,7 +813,7 @@ const handleNarratorHook = (hook) => {
         // Enable chat input and send button
         if (els.prompt) {
             els.prompt.disabled = false;
-            els.prompt.placeholder = "Type your message...";
+            els.prompt.placeholder = "Message Localis...";
         }
 
         if (els.sendBtn) {
@@ -1600,6 +1611,8 @@ const els = {
     tbModelName:           document.getElementById('tb-model-name'),
     btnTopSettings:        document.getElementById('btn-top-settings'),
     chatZone:              document.getElementById('chat-zone'),
+    tokenEstimate:         document.getElementById('token-estimate'),
+    welcomeState:          document.getElementById('welcome-state'),
 };
 
 // ============================================================
@@ -1676,7 +1689,8 @@ const state = {
     tutorialHistory: [],
     tutorialSystemPromptId: "default",
     tutorialSystemPromptText: TUTORIAL_PROMPT_DEFAULT,
-    sessionPreferences: {}  // Per-session UI preferences
+    sessionPreferences: {},  // Per-session UI preferences
+    lastUserMessage: ''      // Tracked for Regenerate action chip
 };
 
 // Initialize user preferred name from sessionStorage
@@ -3631,6 +3645,9 @@ document.getElementById('btn-lsb-settings')?.addEventListener('click', () => tog
 if(els.prompt) els.prompt.addEventListener('input', function() {
     this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px';
     els.sendBtn.classList.toggle('ready', this.value.trim().length > 0);
+    // Token estimate hint
+    const est = Math.round(this.value.length / 4);
+    if (els.tokenEstimate) els.tokenEstimate.textContent = est > 0 ? `~${est} tokens` : '';
 });
 
 const linkInput = (slider, input, scale = 1, settingKey = null) => {
@@ -3709,6 +3726,25 @@ function buildActionCardHTML(type, title, subtitle) {
             <div class="action-card-sub">${escapeHtml(subtitle)}</div>
           </div>
         </div>`;
+}
+
+// --- MESSAGE ACTION CHIPS ---
+// Appends Copy / Regenerate / Continue chips below a completed assistant message row.
+function addMessageActionChips(msgRowEl, plainText) {
+    const chips = document.createElement('div');
+    chips.className = 'msg-actions';
+    chips.innerHTML = `
+        <button class="msg-action-chip" data-action="copy">Copy</button>
+        <button class="msg-action-chip" data-action="regen">Regenerate</button>
+        <button class="msg-action-chip" data-action="continue">Continue</button>
+    `;
+    chips.querySelector('[data-action="copy"]').onclick = () =>
+        navigator.clipboard.writeText(plainText);
+    chips.querySelector('[data-action="regen"]').onclick = () =>
+        api.chat(state.lastUserMessage);
+    chips.querySelector('[data-action="continue"]').onclick = () =>
+        api.chat('Please continue.');
+    msgRowEl.appendChild(chips);
 }
 
 const appendMessage = (role, text) => {
@@ -4502,8 +4538,11 @@ const api = {
             if(data.current) {
                 state.modelLoaded = true; els.modelDisplay.textContent = (data.current || '').replace(/\.gguf$/i, '');
                 updateStatus(true, "Connected");
-                const welcome = document.querySelector('.welcome-container');
-                if (welcome) welcome.remove();
+                // Enable input now that model is loaded
+                if (els.prompt) {
+                    els.prompt.disabled = false;
+                    els.prompt.placeholder = 'Message Localis...';
+                }
                 // Update right sidebar model status
                 if (els.rsbModelName) els.rsbModelName.textContent = data.current.replace(/\.gguf$/i, '');
                 if (els.rsbModelStatus) {
@@ -4513,6 +4552,11 @@ const api = {
             } else {
                 state.modelLoaded = false;
                 updateStatus(false, "No Model");
+                // Disable input while no model loaded
+                if (els.prompt) {
+                    els.prompt.disabled = true;
+                    els.prompt.placeholder = 'Loading model...';
+                }
                 if (els.rsbModelName) els.rsbModelName.textContent = 'No model loaded';
                 if (els.rsbModelStatus) {
                     els.rsbModelStatus.textContent = '● OFFLINE';
@@ -4601,6 +4645,7 @@ const api = {
             state.nCtx = parseInt(els.inputs.ctx.value) || 8192;
             rsbStats.updateContextBar();
             updateStatus(true, "Ready");
+            if (els.prompt) { els.prompt.disabled = false; els.prompt.placeholder = 'Message Localis...'; }
 
             if (document.body.classList.contains('first-run-tutorial')) {
                 // Transition to system_prompt track
@@ -4722,11 +4767,14 @@ const api = {
     chat: async (textOverride = null, voiceOpts = null) => {
         const promptText = textOverride || els.prompt.value.trim();
         if(!promptText || state.isGenerating) return;
-        const welcome = document.querySelector('.welcome-container');
-        if (welcome) welcome.remove();
+        // Track last user message for Regenerate chip
+        state.lastUserMessage = promptText;
+        // Hide welcome state on first message
+        els.welcomeState?.classList.add('hidden');
         if (!textOverride) {
             appendMessage('user', promptText);
             els.prompt.value = ''; els.prompt.style.height = 'auto';
+            if (els.tokenEstimate) els.tokenEstimate.textContent = '';
         }
         state.isGenerating = true;
         let typeInterval = null;
@@ -4873,59 +4921,35 @@ const api = {
                 rsbStats.addChars(assistantMsgContent.length);
             }
 
-            // Final markdown render with syntax highlighting (after stream completes)
+            // Final markdown render with syntax highlighting (after stream completes).
+            // Step 1: extract and render thinking blocks as collapsible pills first.
+            // Step 2: markdown-parse the remaining content.
             const parsed = parseThinking(assistantMsgContent);
+            const renderTarget = msgDiv || assistantMsgEl?.querySelector('.msg-text') || assistantMsgEl;
 
             if (parsed.hasThinking) {
-                // Build HTML with thinking status + content without thinking
-                let html = '';
-                parsed.blocks.forEach((block, index) => {
-                    const thinkingId = `thinking-${Date.now()}-${index}`;
-                    html += `
-                        <div class="thinking-status" data-thinking-id="${thinkingId}">
-                            <span class="thinking-label">💭 thinking...</span>
-                            <button class="thinking-toggle" aria-label="Show thinking">▼</button>
-                        </div>
-                        <div class="thinking-content hidden" data-thinking-id="${thinkingId}">
-                            <pre>${escapeHtml(block.content)}</pre>
-                        </div>
-                    `;
-                });
-
-                // Add remaining content (markdown-rendered)
-                html += marked.parse(parsed.textWithoutThinking);
-
-                // Target .msg-text so avatar/name in the row are preserved
-                const thinkingTarget = msgDiv || assistantMsgEl?.querySelector('.msg-text') || assistantMsgEl;
-                if (thinkingTarget) thinkingTarget.innerHTML = html;
-
-                // Apply syntax highlighting to code blocks
-                assistantMsgEl.querySelectorAll('pre code').forEach((block) => hljs.highlightElement(block));
-
-                // Attach toggle handlers
-                assistantMsgEl.querySelectorAll('.thinking-status').forEach(status => {
-                    status.addEventListener('click', (e) => {
-                        const id = status.dataset.thinkingId;
-                        const content = assistantMsgEl.querySelector(`.thinking-content[data-thinking-id="${id}"]`);
-                        const toggle = status.querySelector('.thinking-toggle');
-
-                        if (content && content.classList.contains('hidden')) {
-                            content.classList.remove('hidden');
-                            toggle.classList.add('expanded');
-                            toggle.textContent = '▲';
-                        } else if (content) {
-                            content.classList.add('hidden');
-                            toggle.classList.remove('expanded');
-                            toggle.textContent = '▼';
-                        }
-                    });
-                });
+                // Render thinking pills (collapsible) + remaining text as markdown
+                const thinkingHtml = renderThinkingPills(assistantMsgContent
+                    .replace(/<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>/gi, (m) => m)); // pass through
+                // Build: pills for all thinking blocks + markdown for the rest
+                const pillsHtml = renderThinkingPills(
+                    parsed.blocks.map(b => `<thinking>${b.content}</thinking>`).join('')
+                );
+                const mainHtml = marked.parse(parsed.textWithoutThinking);
+                if (renderTarget) renderTarget.innerHTML = pillsHtml + mainHtml;
             } else {
                 // No thinking - render markdown once with syntax highlighting
-                if (msgDiv) {
-                    msgDiv.innerHTML = marked.parse(assistantMsgContent);
-                    msgDiv.querySelectorAll('pre code').forEach((block) => hljs.highlightElement(block));
+                if (renderTarget) {
+                    renderTarget.innerHTML = marked.parse(assistantMsgContent);
                 }
+            }
+            if (assistantMsgEl) {
+                assistantMsgEl.querySelectorAll('pre code').forEach((block) => hljs.highlightElement(block));
+            }
+
+            // Add Copy / Regenerate / Continue action chips below the completed message
+            if (assistantMsgEl && !isTutorialChat) {
+                addMessageActionChips(assistantMsgEl, assistantMsgContent);
             }
 
             // Render stats below the assistant message
@@ -5012,7 +5036,13 @@ const api = {
             const res = await fetch(`/history/${state.sessionId}`);
             const msgs = await res.json();
             els.chatHistory.innerHTML = '';
-            msgs.forEach(m => appendMessage(m.role, m.content));
+            if (msgs.length === 0) {
+                // Restore welcome state for empty session
+                els.welcomeState?.classList.remove('hidden');
+            } else {
+                els.welcomeState?.classList.add('hidden');
+                msgs.forEach(m => appendMessage(m.role, m.content));
+            }
         } catch(e) {}
     },
     swapPrompt: async (sessionId, promptText) => {
@@ -6339,6 +6369,39 @@ const startApp = async () => {
 
     // Load system prompt
     api.loadSystemPrompt();
+
+    // Welcome state: show when chat history is empty, hide on first message.
+    // Wire suggestion chip clicks to populate the input.
+    initWelcomeState();
+}
+
+function initWelcomeState() {
+    // Show/hide welcome state based on current message count
+    const hasMessages = els.chatHistory && els.chatHistory.querySelectorAll('.msg-row').length > 0;
+    if (hasMessages) {
+        els.welcomeState?.classList.add('hidden');
+    } else {
+        els.welcomeState?.classList.remove('hidden');
+    }
+
+    // Wire suggestion chip clicks
+    document.querySelectorAll('.welcome-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const prompt = btn.dataset.prompt;
+            if (prompt && els.prompt) {
+                els.prompt.value = prompt;
+                els.prompt.dispatchEvent(new Event('input'));
+                els.welcomeState?.classList.add('hidden');
+                els.prompt.focus();
+            }
+        });
+    });
+
+    // Input disabled state when no model loaded
+    if (els.prompt && !state.modelLoaded) {
+        els.prompt.disabled = true;
+        els.prompt.placeholder = 'Loading model...';
+    }
 }
 
 // Initialize on DOM ready
