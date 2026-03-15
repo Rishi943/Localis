@@ -55,16 +55,18 @@ Exceptions:
 |------|------|--------|-------------|-------|
 | Body | 15px | 400 | 1.5 | Chat messages in Finance Chat tab (matches `.msg-text` at 15px/1.5 in app.css) |
 | Label | 12px | 600 | 1.4 | Section headers, category names, tab labels, column headers in transaction list, category badge text, period label in trend row, date column in transaction list, reset button text |
-| Data | 14px | 500 | 1.3 | Transaction descriptions, period selector, upload CTA text, amount column, budget row labels |
-| Display | 24px | 700 | 1.0 | Total spend figures, key dashboard numbers (matches `.rsb-scard-val` display pattern) |
+| Data | 14px | 400 | 1.3 | Transaction descriptions, period selector, upload CTA text, amount column, budget row labels |
+| Display | 24px | 600 | 1.0 | Total spend figures, key dashboard numbers |
 
-Weights declared: 400 (body/data) and 600 (labels/headings). Weight 700 reserved for display numbers only (not a third weight — matches existing 700 usage in `.rsb-scard-val`).
+Weights declared: **400** (body, data) and **600** (labels, display numbers). Two weights only.
 
-Mono font (JetBrains Mono, size 12px) used only for: date column in transaction list (label role, same scale).
+**Display weight note:** Previous revision referenced 700 from `.rsb-scard-val`. This spec consolidates to 600 for display numbers. Any existing `.rsb-scard-val` 700 declaration in app.css is a pre-existing rule — Phase 2 new `.fin-*` display elements use 600 only and do not inherit or introduce 700.
+
+Mono font (JetBrains Mono, size 12px) used only for: date column in transaction list (label role, weight 600, same scale).
 
 **Consolidation note (revision):** Original spec used 7 sizes (10px, 11px, 12px, 13px, 14px, 15px, 24px). Consolidated to 4 by mapping: 10px → 12px (label role), 11px → 12px (label role), 13px → 14px (data role). All Component Inventory references updated accordingly.
 
-**Source:** UIUX/DESIGN.md specifies Inter at 400/500/600. app.css confirms 15px/1.5 for message body, 12px/600 for section labels, 24px/700 for stat display values.
+**Source:** UIUX/DESIGN.md specifies Inter at 400/500/600. app.css confirms 15px/1.5 for message body, 12px/600 for section labels, 24px for stat display values.
 
 ---
 
@@ -116,7 +118,7 @@ All new Finance components use the `.fin-` prefix. No existing class names are m
 
 ### Period Selector (`.fin-period-select`)
 
-- Dropdown `<select>` styled to match existing modal inputs: `background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--r-sm); padding: 6px 12px; font-size: 14px; color: var(--text-primary)`
+- Dropdown `<select>` styled to match existing modal inputs: `background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--r-sm); padding: 4px 8px; font-size: 14px; color: var(--text-primary)`
 - Positioned at top-right of Dashboard pane header row
 - Options: all uploaded `period_label` values + "All time" (default/first option)
 
@@ -149,15 +151,15 @@ All new Finance components use the `.fin-` prefix. No existing class names are m
 - Row height: `min-height: 40px`, `padding: 8px 16px`
 - Alternating row tint: even rows `background: rgba(255,255,255,0.02)`
 - Columns: Date (80px, 12px mono), Description (flex 1, 14px), Amount (72px right-align, 14px tabular-nums), Category badge, Type indicator
-- Credit rows: Amount text color `#6ee7b7`, "↑ Credit" badge at 12px weight 500
+- Credit rows: Amount text color `#6ee7b7`, "↑ Credit" badge at 12px weight 600
 - Debit rows: Amount text color `var(--text-primary)`
-- Category badge: `background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--r-sm); padding: 2px 6px; font-size: 12px; color: var(--text-muted)`
+- Category badge: `background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--r-sm); padding: 4px 8px; font-size: 12px; color: var(--text-muted)`
 
 ### CSV Upload UI (`.fin-upload-area`)
 
 - Dropzone or button: glass card style (`var(--card-bg)`, `1px solid var(--card-border)`, `border-radius: var(--r-md)`)
 - Period label text input: below file selector, placeholder "e.g. Jan 2026", same styling as settings inputs
-- "Upload CSV" primary CTA button: `background: var(--accent-primary); color: #fff; border-radius: var(--r-pill); padding: 8px 20px; font-size: 14px; font-weight: 600`
+- "Upload CSV" primary CTA button: `background: var(--accent-primary); color: #fff; border-radius: var(--r-pill); padding: 8px 24px; font-size: 14px; font-weight: 600`
 - Upload progress: if file is large, show inline text status ("Parsing 120 rows...") — SSE optional for Phase 2, inline status acceptable
 - Success state: "120 rows added, 0 duplicates skipped" in `var(--text-secondary)` below button
 - Upload list: compact rows showing filename, period label, account type, row count — same `.fin-tx-list` row styling
@@ -270,6 +272,8 @@ No external component registries. All components are hand-coded CSS/HTML followi
 | Spacing scale | app.css existing patterns (modal 16px 18px, RSB section padding) — 8px used for transaction rows (on-grid) |
 | Typography consolidation (4 sizes) | Revision: 10px/11px → 12px (label), 13px → 14px (data) — checker issue 1 fix |
 | Transaction row padding 8px | Revision: 9px → 8px (sm token, on-grid) — checker issue 2 fix |
+| Typography weight consolidation (2 weights) | Revision: 500 data weight → 400; display uses 600 (not 700) — checker dimension 4 fix |
+| Spacing padding fixes | Revision: period-select 6px/12px → 4px/8px; category badge 2px/6px → 4px/8px; upload CTA 8px/20px → 8px/24px — checker dimension 5 fix |
 
 ---
 
