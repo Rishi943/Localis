@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01-ui-polish/01-02-PLAN.md
-last_updated: "2026-03-15T10:25:22.694Z"
+stopped_at: Completed 01-ui-polish/01-01-PLAN.md
+last_updated: "2026-03-15T10:27:37.225Z"
 last_activity: 2026-03-14 — Roadmap created; 25 v1 requirements mapped across 6 phases
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 6
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -51,6 +51,7 @@ Progress: [░░░░░░░░░░] 0%
 
 *Updated after each plan completion*
 | Phase 01-ui-polish P02 | 2 | 2 tasks | 1 files |
+| Phase 01-ui-polish P01 | 25 | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,9 @@ Recent decisions affecting current work:
 - All UI changes must conform to UIUX/DESIGN.md (Midnight Glass identity)
 - [Phase 01-ui-polish]: toggleSettings() must use .collapsed (not .visible) — .rsb.visible has no CSS rule
 - [Phase 01-ui-polish]: Auto-scroll must target #chat-zone (overflow-y: auto), not #chat-history (inner non-scrollable div)
+- [Phase 01-ui-polish]: ID selectors only for #voice-status-bar — class selectors removed, element is unique in DOM
+- [Phase 01-ui-polish]: Ghost scrollbar uses container :hover descendant targeting to prevent thumb-hover flicker
+- [Phase 01-ui-polish]: CSS foundation (01-01): canonical variable set established — all downstream plans reference these variables
 
 ### Pending Todos
 
@@ -77,6 +81,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T10:25:22.692Z
-Stopped at: Completed 01-ui-polish/01-02-PLAN.md
+Last session: 2026-03-15T10:27:37.223Z
+Stopped at: Completed 01-ui-polish/01-01-PLAN.md
 Resume file: None
