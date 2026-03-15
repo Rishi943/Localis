@@ -1672,6 +1672,197 @@ const voiceStatusBar = (() => {
     return { show, hide, setState, setDone, init };
 })();
 
+// ============================================================
+// FINANCE UI MODULE
+// ============================================================
+const financeUI = (function() {
+    let _open = false;
+    let _currentPeriod = 'All time';
+
+    // --- Panel open/close ---
+    function open() {
+        _open = true;
+        const panel = document.getElementById('finance-panel');
+        if (!panel) return;
+        panel.classList.remove('hidden');
+        _checkOnboarding();
+    }
+
+    function close() {
+        _open = false;
+        const panel = document.getElementById('finance-panel');
+        if (panel) panel.classList.add('hidden');
+    }
+
+    // --- Tab switching ---
+    function _activateTab(tabName) {
+        // Update tab buttons
+        document.querySelectorAll('.fin-tab').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.tab === tabName);
+            btn.setAttribute('aria-selected', btn.dataset.tab === tabName);
+        });
+        // Update panes
+        const paneMap = {
+            dashboard: 'fin-pane-dashboard',
+            chat: 'fin-pane-chat',
+            onboarding: 'fin-pane-onboarding',
+        };
+        Object.values(paneMap).forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('active');
+        });
+        const activePane = document.getElementById(paneMap[tabName]);
+        if (activePane) activePane.classList.add('active');
+    }
+
+    // --- Onboarding check ---
+    async function _checkOnboarding() {
+        try {
+            const res = await fetch('/finance/status');
+            if (!res.ok) { _activateTab('dashboard'); return; }
+            const data = await res.json();
+
+            // Populate period selector
+            const sel = document.getElementById('fin-period-select');
+            if (sel && data.periods && data.periods.length > 0) {
+                // Rebuild options: keep "All time" first, then each period
+                sel.innerHTML = '<option value="All time">All time</option>';
+                data.periods.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p; opt.textContent = p;
+                    sel.appendChild(opt);
+                });
+            }
+
+            if (!data.onboarding_done) {
+                // First open — show onboarding pane
+                // Hide tab bar tabs (onboarding is not a tab users switch to manually)
+                document.querySelectorAll('.fin-tab').forEach(t => t.style.display = 'none');
+                _activateTab('onboarding');
+                _startOnboarding();
+            } else {
+                document.querySelectorAll('.fin-tab').forEach(t => t.style.display = '');
+                _activateTab('dashboard');
+                _loadDashboard(_currentPeriod);
+            }
+        } catch (e) {
+            // Server not running or finance not registered yet — default to dashboard
+            _activateTab('dashboard');
+        }
+    }
+
+    // --- Dashboard loading stub (implemented in Plan 05) ---
+    function _loadDashboard(period) {
+        // Stub: Plan 05 implements full dashboard rendering
+        // For now just show empty state if no data
+    }
+
+    // --- Onboarding stub (implemented in Plan 05) ---
+    function _startOnboarding() {
+        // Stub: Plan 05 implements the conversational onboarding flow
+    }
+
+    // --- Init: wire all DOM events ---
+    function init() {
+        // Finance button in RSB collapsed rail
+        document.getElementById('btn-finance')?.addEventListener('click', open);
+
+        // Close button
+        document.getElementById('fin-close')?.addEventListener('click', close);
+
+        // Tab clicks
+        document.querySelectorAll('.fin-tab').forEach(btn => {
+            btn.addEventListener('click', () => {
+                _activateTab(btn.dataset.tab);
+                if (btn.dataset.tab === 'dashboard') _loadDashboard(_currentPeriod);
+            });
+        });
+
+        // Reset goals button
+        document.getElementById('fin-reset-goals')?.addEventListener('click', async () => {
+            if (!confirm('Reset your financial goals? This will not delete your uploaded transactions.')) return;
+            await fetch('/finance/reset_goals', { method: 'POST' });
+            _checkOnboarding();
+        });
+
+        // Period selector change
+        document.getElementById('fin-period-select')?.addEventListener('change', (e) => {
+            _currentPeriod = e.target.value;
+            _loadDashboard(_currentPeriod);
+        });
+
+        // CSV upload trigger
+        const uploadBtn = document.getElementById('fin-upload-btn');
+        const csvInput = document.getElementById('fin-csv-input');
+        const uploadPeriodRow = document.getElementById('fin-upload-period-row');
+
+        uploadBtn?.addEventListener('click', () => csvInput?.click());
+        csvInput?.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                uploadPeriodRow?.classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('fin-upload-cancel')?.addEventListener('click', () => {
+            uploadPeriodRow?.classList.add('hidden');
+            if (csvInput) csvInput.value = '';
+        });
+
+        document.getElementById('fin-upload-confirm')?.addEventListener('click', _uploadCSV);
+
+        // Keyboard: Escape closes panel
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && _open) close();
+        });
+    }
+
+    // --- CSV upload handler ---
+    async function _uploadCSV() {
+        const csvInput = document.getElementById('fin-csv-input');
+        const periodInput = document.getElementById('fin-period-label-input');
+        const statusEl = document.getElementById('fin-upload-status');
+        const uploadPeriodRow = document.getElementById('fin-upload-period-row');
+
+        if (!csvInput?.files.length) return;
+        const periodLabel = periodInput?.value.trim();
+        if (!periodLabel) {
+            if (periodInput) { periodInput.style.borderColor = 'rgba(248,113,113,0.6)'; }
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', csvInput.files[0]);
+        formData.append('period_label', periodLabel);
+
+        if (statusEl) {
+            statusEl.className = 'fin-upload-status';
+            statusEl.textContent = 'Uploading...';
+        }
+
+        try {
+            const res = await fetch('/finance/upload_csv', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (res.ok) {
+                if (statusEl) {
+                    statusEl.className = 'fin-upload-status success';
+                    statusEl.textContent = `Uploaded ${data.row_count} rows (${data.skipped_count} duplicates skipped) — ${data.account_type}`;
+                }
+                uploadPeriodRow?.classList.add('hidden');
+                if (csvInput) csvInput.value = '';
+                if (periodInput) { periodInput.value = ''; periodInput.style.borderColor = ''; }
+                // Refresh status + dashboard
+                await _checkOnboarding();
+            } else {
+                if (statusEl) { statusEl.className = 'fin-upload-status error'; statusEl.textContent = data.detail || 'Upload failed'; }
+            }
+        } catch (e) {
+            if (statusEl) { statusEl.className = 'fin-upload-status error'; statusEl.textContent = 'Upload error: ' + e.message; }
+        }
+    }
+
+    return { open, close, init, _activateTab, _loadDashboard, _checkOnboarding };
+})();
+
 FRT.els.text = document.getElementById('frt-text');
 FRT.els.optional = document.getElementById('frt-optional');
 FRT.els.btnNext = document.getElementById('frt-advance');
@@ -6602,6 +6793,7 @@ const startApp = async () => {
     // Initialize Wakeword UI (depends on voice availability, runs after voiceUI)
     wakewordUI.init().catch(e => Logger.debug('Wakeword', `init error: ${e}`));
     voiceStatusBar.init();
+    financeUI.init();   // Finance panel — no model required
 
     // Load system prompt
     api.loadSystemPrompt();
