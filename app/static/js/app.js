@@ -2862,6 +2862,8 @@ const rsbStats = (() => {
       const r = await fetch('/api/system-stats');
       if (!r.ok) return;
       const d = await r.json();
+
+      // Legacy hidden elements (preserved for any external references)
       if (els.rsbCpuVal) els.rsbCpuVal.textContent = Math.round(d.cpu_pct);
       if (els.rsbCpuBar) els.rsbCpuBar.style.width = `${d.cpu_pct}%`;
       if (els.rsbRamVal) els.rsbRamVal.textContent = d.ram_used_gb;
@@ -2872,6 +2874,23 @@ const rsbStats = (() => {
         els.rsbVramBar.style.width = `${vPct}%`;
         els.rsbVramBar.classList.toggle('rsb-amber', vPct > 80);
         els.rsbVramBar.classList.toggle('rsb-indigo', vPct <= 80);
+      }
+
+      // Compact stat rows
+      const setBar = (id, pct, label) => {
+        const bar = document.getElementById(id);
+        if (bar) bar.style.width = Math.min(pct, 100) + '%';
+        const val = document.getElementById(id + '-val');
+        if (val) val.textContent = label;
+      };
+      setBar('stat-bar-cpu', d.cpu_pct, Math.round(d.cpu_pct) + '%');
+      const ramPct = d.ram_total_gb > 0 ? Math.round(d.ram_used_gb / d.ram_total_gb * 100) : 0;
+      setBar('stat-bar-ram', ramPct, ramPct + '%');
+      if (d.vram_total_gb > 0) {
+        const vPct = Math.round(d.vram_used_gb / d.vram_total_gb * 100);
+        setBar('stat-bar-vram', vPct, (d.vram_used_gb || 0) + 'G');
+      } else {
+        setBar('stat-bar-vram', 0, 'N/A');
       }
     } catch (_) {}
   }
@@ -2912,9 +2931,9 @@ document.querySelectorAll('#rsb-prompt-presets .rsb-pchip').forEach(chip => {
   chip.addEventListener('click', () => {
     const PRESETS = {
       default:  '',
-      creative: 'You are Jarvis, a creative AI assistant. Embrace imaginative thinking, explore unconventional angles, and write with personality and flair.',
-      code:     'You are Jarvis, a coding assistant. Provide working, minimal, idiomatic code. Explain only when the logic is non-obvious.',
-      precise:  'You are Jarvis, a precise AI assistant. Prioritise factual accuracy. Cite uncertainty. Avoid speculation. Be concise.',
+      creative: 'You are Localis, a creative AI assistant. Embrace imaginative thinking, explore unconventional angles, and write with personality and flair.',
+      planning: 'You are Localis, a planning assistant. Help break down goals into clear implementation steps. Be structured, actionable, and concise.',
+      custom:   '',
     };
     const preset = chip.dataset.preset;
     if (!(preset in PRESETS)) return;
@@ -3703,8 +3722,8 @@ const updateStatus = (online, msg) => {
 
 function buildMessageHTML(role, text) {
     const isUser = role === 'user';
-    const initial = isUser ? ((window.userPreferredName)?.[0]?.toUpperCase() || 'U') : 'J';
-    const displayName = isUser ? (window.userPreferredName || 'You') : 'Jarvis';
+    const initial = isUser ? ((window.userPreferredName)?.[0]?.toUpperCase() || 'U') : 'L';
+    const displayName = isUser ? (window.userPreferredName || 'You') : 'Localis';
     return `
         <div class="msg-row ${isUser ? 'user' : 'ai'}">
           <div class="msg-avatar ${isUser ? 'user' : 'ai'}">${initial}</div>
@@ -3745,6 +3764,32 @@ function addMessageActionChips(msgRowEl, plainText) {
     chips.querySelector('[data-action="continue"]').onclick = () =>
         api.chat('Please continue.');
     msgRowEl.appendChild(chips);
+}
+
+// --- DATE GROUP SEPARATORS ---
+function groupMessagesByDate(messages) {
+    let lastLabel = null;
+    const result = [];
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    const isSameDay = (a, b) => a.toDateString() === b.toDateString();
+    for (const msg of messages) {
+        const msgDate = msg.created_at ? new Date(msg.created_at) : null;
+        if (msgDate && !isNaN(msgDate)) {
+            const label = isSameDay(msgDate, today)
+                ? 'Today'
+                : isSameDay(msgDate, yesterday)
+                    ? 'Yesterday'
+                    : msgDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            if (label !== lastLabel) {
+                result.push({ type: 'separator', label });
+                lastLabel = label;
+            }
+        }
+        result.push(msg);
+    }
+    return result;
 }
 
 const appendMessage = (role, text) => {
@@ -5041,7 +5086,17 @@ const api = {
                 els.welcomeState?.classList.remove('hidden');
             } else {
                 els.welcomeState?.classList.add('hidden');
-                msgs.forEach(m => appendMessage(m.role, m.content));
+                const grouped = groupMessagesByDate(msgs);
+                grouped.forEach(item => {
+                    if (item.type === 'separator') {
+                        const sep = document.createElement('div');
+                        sep.className = 'date-separator';
+                        sep.textContent = item.label;
+                        els.chatHistory.appendChild(sep);
+                    } else {
+                        appendMessage(item.role, item.content);
+                    }
+                });
             }
         } catch(e) {}
     },
@@ -5164,11 +5219,11 @@ function populateModalProfileTags() {
   if (!els.modalProfileTags) return;
 
   const PROFILES = {
-    '🏠 Home Control': 'You are Jarvis, a smart home AI assistant. Prioritise interpreting commands as home control actions. Confirm device actions clearly.',
-    'हि Hinglish': 'You are Jarvis. Respond naturally in the same language the user writes in — mix Hindi and English freely (Hinglish). Be conversational and warm.',
-    '🌙 Night Owl': 'You are Jarvis. Keep responses brief and low-key. The user is likely relaxing or winding down — match that energy.',
-    '⚡ Tech Mode': 'You are Jarvis, a technical AI assistant. Prioritise accuracy, include relevant details, use correct terminology. Assume the user is technically capable.',
-    '💻 Coding': 'You are Jarvis, a coding assistant. Provide working code with concise explanations. Prefer minimal, idiomatic solutions.',
+    '🏠 Home Control': 'You are Localis, a smart home AI assistant. Prioritise interpreting commands as home control actions. Confirm device actions clearly.',
+    'हि Hinglish': 'You are Localis. Respond naturally in the same language the user writes in — mix Hindi and English freely (Hinglish). Be conversational and warm.',
+    '🌙 Night Owl': 'You are Localis. Keep responses brief and low-key. The user is likely relaxing or winding down — match that energy.',
+    '⚡ Tech Mode': 'You are Localis, a technical AI assistant. Prioritise accuracy, include relevant details, use correct terminology. Assume the user is technically capable.',
+    '💻 Coding': 'You are Localis, a coding assistant. Provide working code with concise explanations. Prefer minimal, idiomatic solutions.',
   };
 
   const tags = Object.keys(PROFILES);
