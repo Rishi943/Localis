@@ -456,6 +456,15 @@ class SystemPromptRequest(BaseModel):
     name: Optional[str] = None
 
 
+class AppSettingsRequest(BaseModel):
+    accent_color: Optional[str] = None
+    wallpaper_opacity: Optional[float] = None
+    gpu_layers: Optional[int] = None
+    context_size: Optional[int] = None
+    active_profile: Optional[str] = None
+    custom_profile_prompt: Optional[str] = None
+
+
 # ------------------------------
 # Routes: UI & Static
 # ------------------------------
@@ -1886,10 +1895,15 @@ async def system_stats():
     vram_total_gb = 0.0
     if _NVML_OK:
         try:
-            handle = _pynvml.nvmlDeviceGetHandleByIndex(0)
-            info = _pynvml.nvmlDeviceGetMemoryInfo(handle)
-            vram_used_gb = round(info.used / 1e9, 1)
-            vram_total_gb = round(info.total / 1e9, 1)
+            vram_used = 0
+            vram_total = 0
+            for i in range(_pynvml.nvmlDeviceGetCount()):
+                handle = _pynvml.nvmlDeviceGetHandleByIndex(i)
+                info = _pynvml.nvmlDeviceGetMemoryInfo(handle)
+                vram_used += info.used
+                vram_total += info.total
+            vram_used_gb = round(vram_used / (1024**3), 1)
+            vram_total_gb = round(vram_total / (1024**3), 1)
         except Exception:
             pass
 
@@ -1900,3 +1914,49 @@ async def system_stats():
         "vram_used_gb": vram_used_gb,
         "vram_total_gb": vram_total_gb,
     }
+
+
+# ------------------------------
+# Routes: App Settings (GET + POST /api/settings)
+# ------------------------------
+
+@app.get("/api/settings")
+async def get_api_settings():
+    """Return all persisted app settings used by the frontend settings modal."""
+    keys = [
+        "accent_color",
+        "wallpaper_opacity",
+        "gpu_layers",
+        "context_size",
+        "active_profile",
+        "custom_profile_prompt",
+    ]
+    result = {}
+    for key in keys:
+        val = database.get_app_setting(key)
+        if val is not None:
+            result[key] = val
+    return result
+
+
+@app.post("/api/settings")
+async def post_api_settings(req: AppSettingsRequest):
+    """Persist app settings from the frontend settings modal."""
+    updates: dict = {}
+    if req.accent_color is not None:
+        updates["accent_color"] = req.accent_color.strip()
+    if req.wallpaper_opacity is not None:
+        updates["wallpaper_opacity"] = str(req.wallpaper_opacity)
+    if req.gpu_layers is not None:
+        updates["gpu_layers"] = str(req.gpu_layers)
+    if req.context_size is not None:
+        updates["context_size"] = str(req.context_size)
+    if req.active_profile is not None:
+        updates["active_profile"] = req.active_profile.strip()
+    if req.custom_profile_prompt is not None:
+        updates["custom_profile_prompt"] = req.custom_profile_prompt
+
+    for key, value in updates.items():
+        database.set_app_setting(key, value)
+
+    return {"status": "ok", "updated": list(updates.keys())}
