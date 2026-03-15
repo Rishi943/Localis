@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 02-financial-advisor-03-PLAN.md
-last_updated: "2026-03-15T22:58:25.690Z"
+stopped_at: Completed 02-financial-advisor/02-02-PLAN.md
+last_updated: "2026-03-15T23:00:51.441Z"
 last_activity: 2026-03-14 — Roadmap created; 25 v1 requirements mapped across 6 phases
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 13
-  completed_plans: 8
+  completed_plans: 9
   percent: 0
 ---
 
@@ -57,6 +57,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01-ui-polish P05 | 4 | 3 tasks | 4 files |
 | Phase 02-financial-advisor P01 | 161 | 1 tasks | 6 files |
 | Phase 02-financial-advisor P03 | 15 | 2 tasks | 2 files |
+| Phase 02-financial-advisor P02 | 5 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,9 @@ Recent decisions affecting current work:
 - [Phase 02-financial-advisor]: Import guard pattern (try/except ImportError + pytest.skipif) chosen over xfail for clear skip reason at collection time
 - [Phase 02-financial-advisor]: fin_db fixture creates fin_* tables inline (not via init_db) to avoid the production health-check path in tests
 - [Phase 02-financial-advisor]: [Phase 02-financial-advisor P03]: Finance panel z-index is 200 (settings overlay is z-index:100, not 300 as RESEARCH.md estimated)
+- [Phase 02-financial-advisor]: Finance parsers accept list[list[str]] for testability; parse_csv_bytes() wraps bytes path
+- [Phase 02-financial-advisor]: register_finance() added in Plan 02 (not deferred to 04) — integration tests require live endpoint
+- [Phase 02-financial-advisor]: TestClient conftest fixture uses context manager so on_event(startup)/init_db() fires before tests
 
 ### Pending Todos
 
@@ -98,6 +102,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T22:58:25.688Z
-Stopped at: Completed 02-financial-advisor-03-PLAN.md
+Last session: 2026-03-15T23:00:51.439Z
+Stopped at: Completed 02-financial-advisor/02-02-PLAN.md
 Resume file: None
