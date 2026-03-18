@@ -84,6 +84,9 @@ class FinanceE2ETests(unittest.TestCase):
         self._tmpdir = tempfile.mkdtemp()
         self._db_path = os.path.join(self._tmpdir, "test_finance.db")
 
+        # Save original DB_NAME so tearDown can restore it
+        self._orig_db_name = _database.DB_NAME
+
         # Point database module at temp path BEFORE init_db
         _database.DB_NAME = self._db_path
         _database.init_db()
@@ -95,6 +98,9 @@ class FinanceE2ETests(unittest.TestCase):
     def tearDown(self):
         import shutil
         shutil.rmtree(self._tmpdir, ignore_errors=True)
+        # Restore original DB_NAME so the session-scoped TestClient in other
+        # test modules still points at the correct (live) database path.
+        _database.DB_NAME = self._orig_db_name
 
     # -----------------------------------------------------------------------
     # 1. GET /finance/status
