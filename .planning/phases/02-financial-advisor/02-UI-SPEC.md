@@ -71,7 +71,7 @@ Declared values (must be multiples of 4):
 
 Exceptions:
 - Bar chart track height: 8px (budget sidebar progress bars)
-- Budget progress bar: height 6px (slightly thinner than category bars)
+- Budget progress bar: height 4px (slightly thinner than category bars)
 - Touch targets on tab buttons: minimum 44px height
 - Transaction row min-height: 40px (`padding: 8px 16px` on each side)
 - Month group header: `padding: 12px 16px` (12px is not on grid — use 16px/8px split: `padding: 8px 16px` to stay on-grid; visual grouping via background tint, not extra padding)
@@ -178,10 +178,10 @@ All new Finance V2 components use the `.fin-` prefix. V1 `.fin-*` rules in app.c
 - "Reset goals" ghost button: inline below header, 12px `var(--text-muted)`, no background, hover → `var(--status-red)`
 - 8 category rows always shown (Food, Transport, Shopping, Utilities, Entertainment, Health & Fitness, Government & Fees, Other)
 - Each row: category name (12px/600 `var(--text-secondary)`), spend amount (12px mono `var(--text-primary)`), budget amount (12px mono `var(--text-muted)`), progress bar
-- Progress bar track: `height: 6px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden`
+- Progress bar track: `height: 4px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden`
 - Progress bar fill: `height: 100%; width: calc(var(--pct, 0) * 1%); border-radius: 4px; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1)` — color varies by state (see Color section)
 - No-budget row: dashed ghost progress bar + "No budget" label (see Color section)
-- "Reset goals" confirmation: inline text below button — "This clears your budgets and restarts setup. Reset?" with "Yes, reset" (red) and "Cancel" inline links — no modal
+- "Reset goals" confirmation: inline text below button — "This clears your budgets and restarts setup. Reset?" with "Yes, reset" (red) and "Keep goals" inline links — no modal
 
 ### Chart.js Line Chart (`.fin-line-chart-wrap`)
 
@@ -345,7 +345,7 @@ All new Finance V2 components use the `.fin-` prefix. V1 `.fin-*` rules in app.c
 | Upload error — parse error | "Couldn't read that file. Make sure it's a CIBC chequing or credit card CSV export." |
 | Upload error — network | "Upload failed. Check your connection and try again." |
 | Upload error — no account label | "Enter an account label (e.g. CIBC Chequing) before uploading." |
-| Destructive — reset goals | "Reset goals" button → inline: "This clears your budgets and restarts setup. Reset?" with "Yes, reset" (red text) and "Cancel" inline — no modal |
+| Destructive — reset goals | "Reset goals" button → inline: "This clears your budgets and restarts setup. Reset?" with "Yes, reset" (red text) and "Keep goals" inline — no modal |
 | Finance chat empty state | "Ask me anything about your spending. For example: 'What did I spend the most on last month?'" |
 | Finance chat — no data warning | "I don't have any transaction data for that period. Upload a CSV for that time range first." |
 | Budget sidebar — no budget label | "No budget" |
