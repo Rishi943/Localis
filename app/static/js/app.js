@@ -2311,7 +2311,7 @@ const financeUI = (function() {
         }
 
         async function _completeOnboarding() {
-            _appendMsg('assistant', "Perfect — I've saved your goals! You can always reset them with the \"Reset goals\" button. Let's take a look at your Dashboard now. Upload a CIBC bank statement CSV using the button at the top to get started.");
+            _appendMsg('assistant', "Got it. Head to your Dashboard when you're ready to upload your first bank statement.");
 
             // Save to backend
             try {
@@ -2480,7 +2480,7 @@ const financeUI = (function() {
                 if (statusEl) { statusEl.className = 'fin-upload-status error'; statusEl.textContent = data.detail || 'Upload failed'; }
             }
         } catch (e) {
-            if (statusEl) { statusEl.className = 'fin-upload-status error'; statusEl.textContent = 'Upload error: ' + e.message; }
+            if (statusEl) { statusEl.className = 'fin-upload-status error'; statusEl.textContent = 'Upload failed. Check your connection and try again.'; }
         }
     }
 
