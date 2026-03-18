@@ -110,6 +110,12 @@ Recent decisions affecting current work:
 
 None yet.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260318-qay | UI polish fixes, check UI-REVIEW md and proceed to fix all | 2026-03-18 | 9e611dc | [260318-qay-ui-polish-fixes-check-ui-review-md-and-p](.planning/quick/260318-qay-ui-polish-fixes-check-ui-review-md-and-p/) |
+
 ### Blockers/Concerns
 
 - [Pre-Phase 5] LRU eviction missing from memory_core.py retrieval cache (max 50 entries, no eviction) — will cause latency spikes on repeated Financial Advisor queries; fix before Phase 5
