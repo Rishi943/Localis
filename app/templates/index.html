@@ -752,7 +752,7 @@
     <div class="fin-period-bar">
       <label class="fin-period-label">Period:</label>
       <select id="fin-period-select" class="fin-period-select">
-        <option value="All time">All time</option>
+        <option value="all">All time</option>
       </select>
       <button id="fin-upload-btn" class="fin-upload-trigger-btn">
         <svg width="14" height="14"><use href="#ico-upload"/></svg>
@@ -761,10 +761,10 @@
       <input type="file" id="fin-csv-input" accept=".csv" style="display:none">
     </div>
 
-    <!-- Upload period label input (hidden until file selected) -->
+    <!-- Upload account label input (hidden until file selected) -->
     <div id="fin-upload-period-row" class="fin-upload-period-row hidden">
-      <label class="fin-period-label">Period label for this upload:</label>
-      <input type="text" id="fin-period-label-input" class="fin-period-label-input" placeholder="e.g. Jan 2026">
+      <label class="fin-period-label">Account label for this upload:</label>
+      <input type="text" id="fin-account-label-input" class="fin-period-label-input" placeholder="e.g. CIBC Chequing">
       <button id="fin-upload-confirm" class="fin-confirm-btn">Upload</button>
       <button id="fin-upload-cancel" class="fin-cancel-btn">Cancel</button>
     </div>

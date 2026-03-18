@@ -1716,6 +1716,28 @@ const financeUI = (function() {
         if (activePane) { activePane.classList.remove('hidden'); activePane.classList.add('active'); }
     }
 
+    // --- Period selector population (calls /finance/periods) ---
+    async function _loadPeriods() {
+        try {
+            const res = await fetch('/finance/periods');
+            const data = await res.json();
+            const select = document.getElementById('fin-period-select');
+            if (!select) return;
+            const current = select.value;
+            select.innerHTML = '<option value="all">All time</option>';
+            (data.periods || []).forEach(p => {
+                const [y, m] = p.split('-');
+                const dt = new Date(parseInt(y), parseInt(m) - 1);
+                const label = dt.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = label;
+                select.appendChild(opt);
+            });
+            if ([...select.options].some(o => o.value === current)) select.value = current;
+        } catch(e) { console.warn('[Finance] Failed to load periods:', e); }
+    }
+
     // --- Onboarding check ---
     async function _checkOnboarding() {
         try {
@@ -1723,17 +1745,8 @@ const financeUI = (function() {
             if (!res.ok) { _activateTab('dashboard'); return; }
             const data = await res.json();
 
-            // Populate period selector
-            const sel = document.getElementById('fin-period-select');
-            if (sel && data.periods && data.periods.length > 0) {
-                // Rebuild options: keep "All time" first, then each period
-                sel.innerHTML = '<option value="All time">All time</option>';
-                data.periods.forEach(p => {
-                    const opt = document.createElement('option');
-                    opt.value = p; opt.textContent = p;
-                    sel.appendChild(opt);
-                });
-            }
+            // Populate period selector from /finance/periods
+            await _loadPeriods();
 
             if (!data.onboarding_done) {
                 // First open — show onboarding pane
@@ -1755,7 +1768,8 @@ const financeUI = (function() {
     // --- Dashboard loading (Plan 05) ---
     async function _loadDashboard(period) {
         try {
-            const encodedPeriod = encodeURIComponent(period || 'All time');
+            period = period || 'all';
+            const encodedPeriod = encodeURIComponent(period);
             const res = await fetch(`/finance/dashboard_data?period=${encodedPeriod}`);
             if (!res.ok) return;
             const data = await res.json();
@@ -1768,7 +1782,7 @@ const financeUI = (function() {
             if (!hasData) return;
 
             renderCategories(data.categories);
-            renderBudgetActual(data.budget_actual, data.has_goals);
+            renderBudgetActual(data.categories, data.budgets);
             renderTrend(data.trend);
             renderTransactions(data.transactions);
         } catch(e) {
@@ -1804,55 +1818,49 @@ const financeUI = (function() {
         });
     }
 
-    function renderBudgetActual(budgetActual, hasGoals) {
+    function renderBudgetActual(categories, budgets) {
         const container = document.getElementById('fin-budget-chart');
         const hint = document.getElementById('fin-set-budgets-hint');
         if (!container) return;
 
-        if (!hasGoals || !budgetActual || budgetActual.length === 0) {
-            // Show actual-only bars + ghost hint
+        const ALL_CATEGORIES = ['Food', 'Transport', 'Shopping', 'Utilities', 'Entertainment', 'Health & Fitness', 'Government & Fees', 'Other'];
+        const spendMap = {};
+        (categories || []).forEach(c => { spendMap[c.category] = c.total; });
+        budgets = budgets || {};
+
+        const hasBudgets = Object.keys(budgets).length > 0;
+        const hasSpend = Object.keys(spendMap).length > 0;
+
+        if (!hasBudgets && !hasSpend) {
             if (hint) hint.classList.remove('hidden');
-            // Still render actual bars without budget bars
-            if (budgetActual && budgetActual.length > 0) {
-                const maxActual = Math.max(...budgetActual.map(b => b.actual));
-                container.innerHTML = budgetActual.map(b => {
-                    const pct = maxActual > 0 ? (b.actual / maxActual * 100).toFixed(1) : 0;
-                    return `
-                      <div class="fin-bar-row">
-                        <span class="fin-bar-label">${b.category}</span>
-                        <div class="fin-bar-track">
-                          <div class="fin-bar-fill" style="--pct:${pct}"></div>
-                        </div>
-                        <span class="fin-bar-amount">$${b.actual.toFixed(2)}</span>
-                      </div>`;
-                }).join('');
-            } else {
-                container.innerHTML = '<p class="fin-empty-hint">No spending data for this period.</p>';
-            }
+            container.innerHTML = '<p class="fin-empty-hint">No spending data for this period.</p>';
             return;
         }
 
-        if (hint) hint.classList.add('hidden');
-        // Has goals — render paired actual vs budget bars
-        const maxVal = Math.max(...budgetActual.flatMap(b => [b.actual, b.budget]));
-        container.innerHTML = budgetActual.map(b => {
-            const actualPct = maxVal > 0 ? (b.actual / maxVal * 100).toFixed(1) : 0;
-            const budgetPct = maxVal > 0 ? (b.budget / maxVal * 100).toFixed(1) : 0;
-            const overBudget = b.budget > 0 && b.actual > b.budget;
-            return `
-              <div class="fin-budget-row">
-                <span class="fin-bar-label">${b.category}</span>
-                <div class="fin-budget-bars">
-                  <div class="fin-bar-track fin-budget-bar-actual">
-                    <div class="fin-bar-fill${overBudget ? ' fin-dominant' : ''}" style="--pct:${actualPct}" title="Actual: $${b.actual.toFixed(2)}"></div>
-                  </div>
-                  <div class="fin-bar-track fin-budget-bar-budget">
-                    <div class="fin-bar-fill" style="--pct:${budgetPct}" title="Budget: $${b.budget.toFixed(2)}"></div>
-                  </div>
+        if (hint) hint.classList.toggle('hidden', hasBudgets);
+
+        const rows = ALL_CATEGORIES.map(cat => {
+            const actual = spendMap[cat] || 0;
+            const budget = budgets[cat] || 0;
+            const hasBudget = budget > 0;
+            const pct = hasBudget ? Math.min((actual / budget) * 100, 100).toFixed(1) : 0;
+            const barClass = hasBudget
+                ? (actual > budget ? 'fin-bar-fill fin-bar-red'
+                   : actual / budget >= 0.85 ? 'fin-bar-fill fin-bar-amber'
+                   : 'fin-bar-fill')
+                : 'fin-bar-fill';
+            if (actual === 0 && !hasBudget) return ''; // skip empty categories
+
+            return `<div class="fin-bar-row">
+                <span class="fin-bar-label">${cat}</span>
+                <div class="fin-bar-track">
+                    <div class="${barClass}" style="--pct:${pct}"></div>
                 </div>
-                <span class="fin-bar-amount">$${b.actual.toFixed(2)} / $${b.budget.toFixed(2)}</span>
-              </div>`;
-        }).join('');
+                <span class="fin-bar-amount">$${actual.toFixed(2)}${hasBudget ? ' / $' + budget.toFixed(0) : ''}</span>
+            </div>`;
+        }).filter(r => r).join('');
+
+        container.innerHTML = rows || '<p class="fin-empty-hint">No spending data for this period.</p>';
     }
 
     function renderTrend(trend) {
@@ -1860,16 +1868,20 @@ const financeUI = (function() {
         if (!container) return;
         if (!trend || trend.length === 0) { container.innerHTML = '<p class="fin-empty-hint">Upload multiple months to see trend.</p>'; return; }
 
-        const maxSpend = Math.max(...trend.map(t => t.total_spend));
+        const maxSpend = Math.max(...trend.map(t => t.total));
         container.innerHTML = trend.map(t => {
-            const pct = maxSpend > 0 ? (t.total_spend / maxSpend * 100).toFixed(1) : 0;
+            const pct = maxSpend > 0 ? (t.total / maxSpend * 100).toFixed(1) : 0;
+            // Format "2026-01" as "Jan 2026"
+            const [y, m] = t.period.split('-');
+            const dt = new Date(parseInt(y), parseInt(m) - 1);
+            const label = dt.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
             return `
               <div class="fin-bar-row">
-                <span class="fin-bar-label">${t.period_label}</span>
+                <span class="fin-bar-label">${label}</span>
                 <div class="fin-bar-track">
                   <div class="fin-bar-fill" style="--pct:${pct}"></div>
                 </div>
-                <span class="fin-bar-amount">$${t.total_spend.toFixed(2)}</span>
+                <span class="fin-bar-amount">$${t.total.toFixed(2)}</span>
               </div>`;
         }).join('');
     }
@@ -2120,20 +2132,25 @@ const financeUI = (function() {
     // --- CSV upload handler ---
     async function _uploadCSV() {
         const csvInput = document.getElementById('fin-csv-input');
-        const periodInput = document.getElementById('fin-period-label-input');
+        const accountInput = document.getElementById('fin-account-label-input');
         const statusEl = document.getElementById('fin-upload-status');
         const uploadPeriodRow = document.getElementById('fin-upload-period-row');
 
         if (!csvInput?.files.length) return;
-        const periodLabel = periodInput?.value.trim();
-        if (!periodLabel) {
-            if (periodInput) { periodInput.style.borderColor = 'rgba(248,113,113,0.6)'; }
+        const accountLabel = accountInput?.value.trim();
+        if (!accountLabel) {
+            if (statusEl) {
+                statusEl.textContent = 'Enter an account label (e.g. CIBC Chequing) before uploading.';
+                statusEl.className = 'fin-upload-status error';
+                statusEl.classList.remove('hidden');
+            }
+            if (accountInput) { accountInput.style.borderColor = 'rgba(248,113,113,0.6)'; }
             return;
         }
 
         const formData = new FormData();
         formData.append('file', csvInput.files[0]);
-        formData.append('period_label', periodLabel);
+        formData.append('account_label', accountLabel);
 
         if (statusEl) {
             statusEl.className = 'fin-upload-status';
@@ -2146,12 +2163,13 @@ const financeUI = (function() {
             if (res.ok) {
                 if (statusEl) {
                     statusEl.className = 'fin-upload-status success';
-                    statusEl.textContent = `Uploaded ${data.row_count} rows (${data.skipped_count} duplicates skipped) — ${data.account_type}`;
+                    statusEl.textContent = data.message || `Uploaded ${data.row_count} rows (${data.skipped_count} duplicates skipped) — ${data.account_type}`;
                 }
                 uploadPeriodRow?.classList.add('hidden');
                 if (csvInput) csvInput.value = '';
-                if (periodInput) { periodInput.value = ''; periodInput.style.borderColor = ''; }
-                // Refresh status + dashboard
+                if (accountInput) { accountInput.value = ''; accountInput.style.borderColor = ''; }
+                // Refresh periods selector and dashboard
+                await _loadPeriods();
                 await _checkOnboarding();
             } else {
                 if (statusEl) { statusEl.className = 'fin-upload-status error'; statusEl.textContent = data.detail || 'Upload failed'; }
