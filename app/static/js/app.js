@@ -2115,20 +2115,87 @@ const financeUI = (function() {
     function renderTransactions(transactions) {
         const container = document.getElementById('fin-tx-list');
         if (!container) return;
-        if (!transactions || transactions.length === 0) { container.innerHTML = '<p class="fin-empty-hint" style="padding:12px 4px">No transactions for this period.</p>'; return; }
+        if (!transactions || transactions.length === 0) {
+            container.innerHTML = '<p class="fin-empty-hint" style="padding:16px">No transactions for this period.</p>';
+            return;
+        }
 
-        container.innerHTML = transactions.map(tx => {
-            const isCredit = tx.type === 'credit';
-            const amountStr = `$${tx.amount.toFixed(2)}`;
-            const creditTag = isCredit ? '<span class="fin-tx-credit-tag">&#8593; Credit</span>' : '';
-            return `
-              <div class="fin-tx-row">
-                <span class="fin-tx-date">${tx.date}</span>
-                <span class="fin-tx-desc" title="${tx.description}">${tx.description}</span>
-                <span class="fin-tx-cat">${tx.category}</span>
-                <span class="fin-tx-amount ${isCredit ? 'fin-tx-credit' : ''}">${amountStr}${creditTag}</span>
-              </div>`;
-        }).join('');
+        // Group by YYYY-MM (newest first)
+        const grouped = {};
+        transactions.forEach(tx => {
+            const month = (tx.date || '').substring(0, 7); // "2026-03"
+            if (!grouped[month]) grouped[month] = [];
+            grouped[month].push(tx);
+        });
+
+        const sortedMonths = Object.keys(grouped).sort().reverse();
+        container.innerHTML = '';
+
+        sortedMonths.forEach(month => {
+            const txs = grouped[month];
+            const monthGroup = document.createElement('div');
+            monthGroup.className = 'fin-month-group';
+
+            // Month header
+            const [y, m] = month.split('-');
+            const dt = new Date(parseInt(y), parseInt(m) - 1);
+            const monthLabel = dt.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            // Total debit for the month
+            const monthTotal = txs.reduce((sum, tx) => sum + (tx.type === 'debit' ? (tx.amount || 0) : 0), 0);
+
+            const header = document.createElement('div');
+            header.className = 'fin-month-group-header';
+            header.innerHTML = `
+                <span class="fin-month-name">${monthLabel}</span>
+                <span class="fin-month-total">$${monthTotal.toFixed(2)}</span>
+                <button class="fin-month-toggle" aria-label="Toggle month">&#9660;</button>
+            `;
+            header.addEventListener('click', () => {
+                monthGroup.classList.toggle('collapsed');
+                const toggle = header.querySelector('.fin-month-toggle');
+                if (toggle) toggle.innerHTML = monthGroup.classList.contains('collapsed') ? '&#9654;' : '&#9660;';
+            });
+
+            // Month body (transaction rows)
+            const body = document.createElement('div');
+            body.className = 'fin-month-group-body';
+
+            txs.forEach(tx => {
+                const row = document.createElement('div');
+                row.className = 'fin-tx-row';
+
+                // Format date: "2026-03-17" → "Mar 17, 2026"
+                let dateStr = tx.date || '';
+                try {
+                    const d = new Date(dateStr + 'T00:00:00');
+                    dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                } catch(e) { /* use raw date */ }
+
+                // Source tag
+                const isCredit = tx.account_type === 'credit_card';
+                const sourceClass = isCredit ? 'fin-tx-source fin-tx-source-credit' : 'fin-tx-source fin-tx-source-bank';
+                const sourceLabel = isCredit ? 'Credit Card' : 'Bank';
+
+                // Amount display
+                const isCreditTx = tx.type === 'credit';
+                const amountClass = isCreditTx ? 'fin-tx-amount fin-tx-credit' : 'fin-tx-amount';
+                const amountPrefix = isCreditTx ? '&#8593; ' : '';
+                const amountStr = '$' + (tx.amount || 0).toFixed(2);
+
+                row.innerHTML = `
+                    <span class="fin-tx-date">${dateStr}</span>
+                    <span class="fin-tx-desc" title="${(tx.description || '').replace(/"/g, '&quot;')}">${tx.description || ''}</span>
+                    <span class="${sourceClass}">${sourceLabel}</span>
+                    <span class="fin-tx-cat">${tx.category || ''}</span>
+                    <span class="${amountClass}">${amountPrefix}${amountStr}</span>
+                `;
+                body.appendChild(row);
+            });
+
+            monthGroup.appendChild(header);
+            monthGroup.appendChild(body);
+            container.appendChild(monthGroup);
+        });
     }
 
     // --- Onboarding step machine (Plan 05) ---
