@@ -111,7 +111,7 @@ textarea { font-family: var(--font-ui); }
   flex-direction: column;
   overflow: hidden;
   box-shadow: var(--glass-shadow);
-  transition: width .2s ease;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .lsb.collapsed { width: 64px; overflow: hidden; }
 .lsb-head {
@@ -128,6 +128,10 @@ textarea { font-family: var(--font-ui); }
 }
 .lsb.collapsed .lsb-title { display: none; }
 .lsb.collapsed .lsb-head { display: none; }
+.lsb-body {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+}
+.lsb.collapsed .lsb-body { display: none; }
 .new-chat-btn {
   margin: 0 8px 8px;
   padding: 7px 10px;
@@ -140,13 +144,11 @@ textarea { font-family: var(--font-ui); }
   display: flex; align-items: center; gap: 7px;
   white-space: nowrap; overflow: hidden;
 }
-.lsb.collapsed .new-chat-btn { display: none; }
 .sess-list {
   flex: 1; overflow-y: auto; overflow-x: hidden;
   padding: 0 6px;
   display: flex; flex-direction: column; gap: 2px;
 }
-.lsb.collapsed .sess-list { display: none; }
 .sess-date {
   font-size: 8px; color: var(--text-muted);
   padding: 5px 6px 3px;
@@ -180,7 +182,6 @@ textarea { font-family: var(--font-ui); }
 .lsb.collapsed .status-txt { display: none; }
 .lsb:not(.collapsed) .lsb-foot-settings { display: none; }
 .lsb.collapsed .lsb-foot-settings { display: flex; align-items: center; justify-content: center; width: 100%; padding: 8px 0; cursor: pointer; }
-.lsb.collapsed #left-rail { display: flex; }
 
 /* ── LSB Rail ────────────────────────────────────────────── */
 #left-rail {
