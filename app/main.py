@@ -1133,6 +1133,20 @@ async def chat_endpoint(req: ChatRequest):
         if has_indexed:
             effective_tool_actions = list(effective_tool_actions or []) + ['rag_retrieve']
 
+    # Auto-inject notes tools based on user message keywords (chat path only)
+    _note_add_re = re.compile(
+        r'\b(add note|jot|add reminder|remind me|note (that|this|down)|save (this|note))\b',
+        re.IGNORECASE
+    )
+    _note_retrieve_re = re.compile(
+        r'\b(my notes?|what.*notes?|show.*notes?|list.*notes?|any notes?|notes? (about|for|on)|reminders?)\b',
+        re.IGNORECASE
+    )
+    if 'notes.add' not in existing_tool_names and _note_add_re.search(user_msg):
+        effective_tool_actions = list(effective_tool_actions or []) + ['notes.add']
+    if 'notes.retrieve' not in existing_tool_names and _note_retrieve_re.search(user_msg):
+        effective_tool_actions = list(effective_tool_actions or []) + ['notes.retrieve']
+
     # Execute tools if explicitly requested or auto-injected
     if effective_tool_actions:
         logger.debug(f"[Chat] Tools requested: {[t.get('type') if isinstance(t, dict) else t for t in effective_tool_actions]}")

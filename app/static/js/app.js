@@ -2680,15 +2680,52 @@ const notesUI = (() => {
                 dueBadge = `<div class="card-due">\u23F0 ${_escapeHtml(_formatDueDate(note.due_at))} ${overdueLabel}</div>`;
             }
 
+            const COLOR_OPTIONS = [
+                { key: 'default', label: 'Default', bg: 'rgba(60,60,60,0.8)' },
+                { key: 'deep-blue', label: 'Blue', bg: 'rgba(30,58,138,0.85)' },
+                { key: 'dark-teal', label: 'Teal', bg: 'rgba(20,84,92,0.85)' },
+                { key: 'amber-night', label: 'Amber', bg: 'rgba(120,53,15,0.85)' },
+                { key: 'rose-night', label: 'Rose', bg: 'rgba(108,28,55,0.85)' },
+                { key: 'mauve-glass', label: 'Mauve', bg: 'rgba(76,29,149,0.85)' },
+            ];
+            const colorSwatches = COLOR_OPTIONS.map(c =>
+                `<button class="btn-color-swatch${c.key === (note.color || 'default') ? ' active' : ''}" data-color="${c.key}" style="background:${c.bg}" title="${c.label}"></button>`
+            ).join('');
+
             card.innerHTML = `
                 <div class="card-controls">
-                    <button class="btn-card-delete" title="Delete note (5s undo)" data-note-id="${note.id}">\uD83D\uDDD1</button>
+                    <div class="card-color-swatches">${colorSwatches}</div>
+                    <button class="btn-card-delete" title="Delete note" data-note-id="${note.id}">&#x1F5D1;</button>
                 </div>
                 <div class="card-content-wrap" data-note-id="${note.id}">
                     <div class="card-text">${_escapeHtml(note.content)}</div>
                     ${dueBadge}
                 </div>
             `;
+
+            // Wire color swatches
+            card.querySelectorAll('.btn-color-swatch').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const newColor = btn.dataset.color;
+                    try {
+                        const res = await fetch(`/notes/${note.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ color: newColor })
+                        });
+                        if (res.ok) {
+                            note.color = newColor;
+                            card.className = `note-card card-color-${newColor}`;
+                            if (note.pinned) card.classList.add('card-pinned');
+                            if (_isOverdue(note)) card.classList.add('card-overdue-pulse');
+                            card.querySelectorAll('.btn-color-swatch').forEach(b =>
+                                b.classList.toggle('active', b.dataset.color === newColor)
+                            );
+                        }
+                    } catch (e) { /* silently ignore */ }
+                });
+            });
 
             // Wire click-to-edit on content
             const contentWrap = card.querySelector('.card-content-wrap');
@@ -2727,54 +2764,125 @@ const notesUI = (() => {
     function _enterEditMode(card, note) {
         card.classList.add('editing');
         const contentWrap = card.querySelector('.card-content-wrap');
+
         const textarea = document.createElement('textarea');
         textarea.className = 'card-textarea';
         textarea.value = note.content;
 
+        // Clock icon + datetime-local input for reminders
+        let dateRow = null;
+        let dateInput = null;
+        if (note.note_type === 'reminder') {
+            dateRow = document.createElement('div');
+            dateRow.className = 'card-edit-date-row';
+            dateRow.innerHTML = '<span class="card-edit-clock" title="Reminder time">&#x23F0;</span>';
+            dateInput = document.createElement('input');
+            dateInput.type = 'datetime-local';
+            dateInput.className = 'card-edit-datetime';
+            // Convert ISO UTC → local datetime-local value
+            if (note.due_at) {
+                try {
+                    const d = new Date(note.due_at);
+                    // datetime-local needs local time in "YYYY-MM-DDThh:mm" format
+                    const pad = n => String(n).padStart(2, '0');
+                    dateInput.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                } catch (e) {}
+            }
+            dateRow.appendChild(dateInput);
+        }
+
         if (contentWrap) {
             contentWrap.innerHTML = '';
             contentWrap.appendChild(textarea);
+            if (dateRow) contentWrap.appendChild(dateRow);
         }
         textarea.focus();
         textarea.select();
 
+        let saving = false;
         async function _saveEdit() {
+            if (saving) return;
+            saving = true;
             const newContent = textarea.value.trim();
             if (!newContent) {
                 _deleteNote(note.id, card);
                 return;
             }
-            if (newContent === note.content) {
+            const patch = {};
+            if (newContent !== note.content) patch.content = newContent;
+            if (dateInput) {
+                // Convert datetime-local (local time) back to ISO UTC
+                const localVal = dateInput.value;
+                if (localVal) {
+                    const d = new Date(localVal);
+                    patch.due_at = d.toISOString();
+                } else {
+                    patch.due_at = '';  // clear reminder time
+                }
+            }
+            if (Object.keys(patch).length === 0) {
+                // Nothing changed — just exit edit
                 card.classList.remove('editing');
-                if (contentWrap) contentWrap.innerHTML = `<div class="card-text">${_escapeHtml(note.content)}</div>`;
+                _restoreCardContent(contentWrap, note);
                 return;
             }
             try {
                 const res = await fetch(`/notes/${note.id}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content: newContent })
+                    body: JSON.stringify(patch)
                 });
                 if (res.ok) {
-                    note.content = newContent;
+                    const updated = await res.json();
+                    note.content = updated.content;
+                    note.due_at = updated.due_at;
                     card.classList.remove('editing');
-                    if (contentWrap) contentWrap.innerHTML = `<div class="card-text">${_escapeHtml(newContent)}</div>`;
+                    _restoreCardContent(contentWrap, note);
                 } else {
                     _showToast('Failed to save note. Please try again.', null, null);
                     card.classList.remove('editing');
+                    _restoreCardContent(contentWrap, note);
                 }
             } catch (err) {
                 _showToast('Failed to save note. Please try again.', null, null);
                 card.classList.remove('editing');
+                _restoreCardContent(contentWrap, note);
             }
         }
 
-        textarea.addEventListener('blur', _saveEdit);
+        function _restoreCardContent(wrap, n) {
+            if (!wrap) return;
+            let dueBadge = '';
+            if (n.note_type === 'reminder' && n.due_at) {
+                const overdue = _isOverdue(n);
+                const overdueLabel = overdue ? '<span class="card-overdue-badge">Overdue</span>' : '';
+                dueBadge = `<div class="card-due">&#x23F0; ${_escapeHtml(_formatDueDate(n.due_at))} ${overdueLabel}</div>`;
+            }
+            wrap.innerHTML = `<div class="card-text">${_escapeHtml(n.content)}</div>${dueBadge}`;
+        }
+
+        textarea.addEventListener('blur', (e) => {
+            // Don't save if focus moved to the date input inside the same card
+            if (dateInput && e.relatedTarget === dateInput) return;
+            _saveEdit();
+        });
+        if (dateInput) {
+            dateInput.addEventListener('blur', (e) => {
+                if (e.relatedTarget === textarea) return;
+                _saveEdit();
+            });
+        }
         textarea.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
+                saving = true;
                 card.classList.remove('editing');
-                if (contentWrap) contentWrap.innerHTML = `<div class="card-text">${_escapeHtml(note.content)}</div>`;
+                _restoreCardContent(contentWrap, note);
                 textarea.removeEventListener('blur', _saveEdit);
+            }
+            if (e.key === 'Enter' && !e.shiftKey && !dateInput) {
+                e.preventDefault();
+                textarea.removeEventListener('blur', _saveEdit);
+                _saveEdit();
             }
         });
     }
@@ -2841,8 +2949,10 @@ const notesUI = (() => {
     // ---- Delete with Undo Toast ----
 
     function _deleteNote(noteId, cardEl) {
-        // Optimistic: mark deleting visually
-        cardEl.style.opacity = '0.4';
+        // Optimistic: remove card immediately, save next sibling for undo re-insert
+        const parent = cardEl.parentNode;
+        const nextSibling = cardEl.nextSibling;
+        cardEl.remove();
 
         let undone = false;
         _showToast(
@@ -2850,7 +2960,14 @@ const notesUI = (() => {
             'Undo',
             () => {
                 undone = true;
-                cardEl.style.opacity = '';
+                // Re-insert at original position
+                if (parent) {
+                    if (nextSibling && nextSibling.parentNode === parent) {
+                        parent.insertBefore(cardEl, nextSibling);
+                    } else {
+                        parent.appendChild(cardEl);
+                    }
+                }
             }
         );
 
@@ -2859,9 +2976,8 @@ const notesUI = (() => {
                 try {
                     await fetch(`/notes/${noteId}`, { method: 'DELETE' });
                 } catch (e) {
-                    // Ignore network error — card was optimistically removed
+                    // Ignore — card already removed from DOM
                 }
-                cardEl.remove();
                 await refresh();
             }
         }, 5000);

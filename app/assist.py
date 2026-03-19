@@ -6,13 +6,17 @@
 import os
 import re
 import json
+import sqlite3
+import uuid
 import threading
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel, Field, field_validator
+from . import database
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +198,49 @@ def _build_tool_schema() -> list:
         {
             "type": "function",
             "function": {
+                "name": "notes_add",
+                "description": "Save a new note or reminder to the user's notepad. Use for: 'add note', 'jot down', 'remind me to X at Y time'. For reminders, set due_at to an ISO8601 UTC string.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "content": {
+                            "type": "string",
+                            "description": "The note or reminder text."
+                        },
+                        "note_type": {
+                            "type": "string",
+                            "enum": ["note", "reminder"],
+                            "description": "'note' for plain notes, 'reminder' for timed reminders."
+                        },
+                        "due_at": {
+                            "type": "string",
+                            "description": "ISO8601 UTC datetime for reminders, e.g. '2026-03-20T09:00:00Z'. Null for plain notes."
+                        }
+                    },
+                    "required": ["content", "note_type"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "notes_retrieve",
+                "description": "Retrieve the user's saved notes and reminders. Use for: 'what did I note', 'show my notes', 'do I have a reminder about X'.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "filter_text": {
+                            "type": "string",
+                            "description": "Optional search string to filter notes by content."
+                        }
+                    },
+                    "required": []
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "intent_unclear",
                 "description": "Called when the user intent does not map to any available smart home function.",
                 "parameters": {
@@ -214,8 +261,10 @@ def _build_tool_schema() -> list:
 
 def _build_system_prompt() -> str:
     return (
-        "You are an on-device smart home router. "
+        "You are an on-device assistant router. "
         "Always respond by calling exactly one tool from the provided tool schema. "
+        "Use notes_add for note/reminder creation, notes_retrieve for listing notes, "
+        "toggle_lights/get_light_state for smart home light control. "
         "If the request is unsupported or unclear, call intent_unclear. "
         "Output no normal text — only a tool call."
     )
@@ -654,6 +703,59 @@ async def _execute_tool_call(tool_call: dict) -> dict:
 
     if name == "intent_unclear":
         return {"response": "No function available for that request.", "raw": tool_call}
+
+    if name == "notes_add":
+        content = args.get("content", "").strip()
+        note_type = args.get("note_type", "note")
+        due_at = args.get("due_at") or None
+        if not content:
+            return {"response": "I couldn't understand what to note down.", "raw": tool_call}
+        try:
+            db_path = database.DB_NAME
+            conn = sqlite3.connect(db_path)
+            note_id = str(uuid.uuid4())
+            now = datetime.now(timezone.utc).isoformat()
+            conn.execute(
+                "INSERT INTO notes (id, content, note_type, due_at, color, pinned, dismissed, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, 'default', ?, ?, ?, ?)",
+                (note_id, content, note_type, due_at, now, None, now, now)
+            )
+            conn.commit()
+            conn.close()
+            if note_type == "reminder" and due_at:
+                return {"response": f"Reminder set: {content}.", "raw": tool_call}
+            return {"response": f"Note saved: {content}.", "raw": tool_call}
+        except Exception as e:
+            logger.error(f"[Assist] notes_add failed: {e}")
+            return {"response": "Sorry, I couldn't save that note.", "raw": tool_call}
+
+    if name == "notes_retrieve":
+        filter_text = args.get("filter_text", "").strip()
+        try:
+            db_path = database.DB_NAME
+            conn = sqlite3.connect(db_path)
+            if filter_text:
+                rows = conn.execute(
+                    "SELECT content, note_type, due_at FROM notes WHERE dismissed IS NULL AND content LIKE ? ORDER BY created_at DESC LIMIT 10",
+                    (f"%{filter_text}%",)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT content, note_type, due_at FROM notes WHERE dismissed IS NULL ORDER BY created_at DESC LIMIT 10"
+                ).fetchall()
+            conn.close()
+            if not rows:
+                return {"response": "You have no notes saved.", "raw": tool_call}
+            parts = []
+            for content, note_type, due_at in rows:
+                if note_type == "reminder" and due_at:
+                    parts.append(f"Reminder: {content} (due {due_at[:10]})")
+                else:
+                    parts.append(f"Note: {content}")
+            return {"response": "Here are your notes: " + "; ".join(parts) + ".", "raw": tool_call}
+        except Exception as e:
+            logger.error(f"[Assist] notes_retrieve failed: {e}")
+            return {"response": "Sorry, I couldn't retrieve your notes.", "raw": tool_call}
 
     if name == "get_light_state":
         try:

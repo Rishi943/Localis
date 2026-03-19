@@ -1630,18 +1630,46 @@ body.app-ready #frt-overlay { display: none !important; }
     letter-spacing: 0.05em;
 }
 
-/* --- Card Controls (trash icon — visible on hover) --- */
+/* --- Card Controls (color swatches + trash — visible on hover) --- */
 .card-controls {
     position: absolute;
     top: 8px;
     right: 8px;
     display: none;
-    gap: 4px;
+    gap: 6px;
     align-items: center;
 }
 
 .note-card:hover .card-controls {
     display: flex;
+}
+
+/* --- Color Swatches --- */
+.card-color-swatches {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.btn-color-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255, 255, 255, 0.15);
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.1s ease, border-color 0.1s ease;
+    flex-shrink: 0;
+}
+
+.btn-color-swatch:hover {
+    transform: scale(1.25);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.btn-color-swatch.active {
+    border-color: rgba(255, 255, 255, 0.9);
+    transform: scale(1.15);
 }
 
 .btn-card-delete {
@@ -1678,6 +1706,38 @@ body.app-ready #frt-overlay { display: none !important; }
     resize: vertical;
     outline: none;
     box-shadow: 0 0 0 2px rgba(90, 140, 255, 0.25);
+}
+
+/* --- Edit Mode: clock icon + datetime-local row (reminders) --- */
+.card-edit-date-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.card-edit-clock {
+    font-size: 14px;
+    opacity: 0.6;
+    flex-shrink: 0;
+    cursor: default;
+}
+
+.card-edit-datetime {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(90, 140, 255, 0.4);
+    border-radius: 6px;
+    color: var(--text-primary, #ffffff);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 4px 8px;
+    outline: none;
+    color-scheme: dark;
+}
+
+.card-edit-datetime:focus {
+    border-color: var(--accent-primary, #5A8CFF);
 }
 
 /* --- Create Card (dashed empty card) --- */
@@ -1790,8 +1850,7 @@ body.app-ready #frt-overlay { display: none !important; }
 .toast-undo {
     position: fixed;
     bottom: 32px;
-    left: 50%;
-    transform: translateX(-50%);
+    left: 32px;
     background: var(--bg-panel, rgba(15, 15, 15, 0.85));
     border: 1px solid rgba(255, 255, 255, 0.12);
     backdrop-filter: var(--glass-filter, blur(24px) saturate(180%));

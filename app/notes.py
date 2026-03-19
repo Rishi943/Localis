@@ -54,6 +54,7 @@ class UpdateNoteRequest(BaseModel):
     content: Optional[str] = None
     color: Optional[str] = None
     pinned: Optional[int] = None
+    due_at: Optional[str] = None  # ISO8601 UTC string; empty string clears the reminder time
 
 
 # ---------------------------------------------------------------------------
@@ -176,6 +177,10 @@ async def update_note(note_id: str, req: UpdateNoteRequest, request: Request):
         if req.pinned is not None:
             updates.append("pinned = ?")
             params.append(req.pinned)
+        if req.due_at is not None:
+            # empty string → clear reminder time; ISO string → set it
+            updates.append("due_at = ?")
+            params.append(req.due_at if req.due_at else None)
         if not updates:
             raise HTTPException(status_code=400, detail="No fields to update")
 
