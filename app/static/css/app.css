@@ -1219,7 +1219,9 @@ body.app-ready #frt-overlay { display: none !important; }
 }
 .fin-line-chart-wrap {
     flex: 1;
+    height: 180px;
     min-height: 180px;
+    max-height: 180px;
     position: relative;
     display: flex;
     flex-direction: column;
