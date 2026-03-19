@@ -412,45 +412,66 @@ body.app-ready .app-container { display: flex; }
 .btn-danger:hover { background: #b91c1c; }
 .btn-danger:disabled { background: #9ca3af; cursor: not-allowed; }
 
-/* ── Chat messages (prose, no bubbles) ─── */
+/* ── Chat Bubbles (redesign) ─────────────────────────────── */
 .msg-row {
-  display: flex; gap: 8px; align-items: flex-end;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  align-items: flex-start;
 }
 .msg-row.user { flex-direction: row-reverse; }
 .msg-avatar {
-  width: 22px; height: 22px; border-radius: 50%;
-  flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 9px; font-weight: 600;
-}
-.msg-avatar.ai {
-  background: rgba(99,102,241,.2);
-  color: #a5b4fc;
-  border: 1px solid rgba(99,102,241,.2);
+  font-size: 13px; font-weight: 600;
+  flex-shrink: 0; line-height: 1;
 }
 .msg-avatar.user {
-  background: rgba(255,255,255,.1);
-  color: rgba(255,255,255,.7);
-  border: 1px solid rgba(255,255,255,.12);
+  background: linear-gradient(135deg, #1275e2, #6366f1);
+  color: #fff;
+}
+.msg-avatar.ai {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--accent-light);
 }
 .msg-body {
-  display: flex; flex-direction: column; gap: 2px;
-  max-width: 72%;
+  display: flex; flex-direction: column; gap: 4px;
+  max-width: clamp(280px, 75%, 680px);
 }
-.msg-row.user .msg-body { align-items: flex-end; }
-.msg-row.ai  .msg-body { align-items: flex-start; }
+.msg-row.user .msg-body {
+  align-items: flex-end;
+  max-width: clamp(200px, 70%, 520px);
+}
+.msg-row.ai .msg-body { align-items: flex-start; }
 .msg-name {
-  font-size: 10px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: .05em;
-  padding: 0 3px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 0.02em;
+  margin-bottom: 2px;
 }
-.msg-row.user .msg-name { color: rgba(255,255,255,.45); }
-.msg-row.ai  .msg-name { color: rgba(99,102,241,.8); }
+.msg-row.user .msg-name { color: rgba(255,255,255,0.45); }
+.msg-bubble {
+  padding: 12px 16px;
+  line-height: 1.6;
+  font-size: 15px;
+}
+.msg-row.user .msg-bubble {
+  background: rgba(255,255,255,0.08);
+  border-radius: 18px 18px 4px 18px;
+  border: 1px solid rgba(255,255,255,0.07);
+}
+.msg-row.ai .msg-bubble {
+  background: var(--bg-panel);
+  border-radius: 4px 18px 18px 18px;
+  border: 1px solid rgba(255,255,255,0.07);
+  backdrop-filter: var(--glass-filter);
+}
 .msg-text {
-  font-size: 15px; line-height: 1.5;
+  font-size: 15px; line-height: 1.6;
 }
 .msg-row.user .msg-text { color: rgba(255,255,255,.9); }
-.msg-row.ai  .msg-text { color: rgba(255,255,255,.7); }
+.msg-row.ai  .msg-text { color: rgba(255,255,255,.8); }
 .msg-stats {
   display: flex; gap: 6px; align-items: center;
   font-size: 10px; color: rgba(255,255,255,.18);
@@ -991,10 +1012,28 @@ body.app-ready #frt-overlay { display: none !important; }
 /* ── Token estimate hint ─────────────── */
 .token-estimate { font-size: 11px; color: var(--text-muted); opacity: 0.5; user-select: none; align-self: flex-end; margin-left: auto; flex-shrink: 0; }
 
-/* ── Message action chips ────────────── */
-.msg-actions { display: flex; gap: 6px; margin-top: 6px; padding-left: 4px; }
-.msg-action-chip { font-size: 12px; padding: 3px 10px; border-radius: var(--r-sm); background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-muted); cursor: pointer; transition: background .15s, color .15s; }
-.msg-action-chip:hover { background: var(--accent-soft); color: var(--accent-primary); }
+/* ── Message Actions ─────────────────────────────────────── */
+.msg-actions {
+  display: flex; align-items: center; gap: 4px;
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.msg-row:hover .msg-actions { opacity: 1; }
+.msg-action-icon {
+  background: transparent; border: none;
+  color: rgba(255,255,255,0.3);
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.msg-action-icon:hover {
+  background: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.7);
+}
+.msg-action-icon.active { color: var(--accent-primary); }
 
 /* ── Thinking block (collapsible pill) ── */
 .thinking-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: var(--r-pill); background: var(--card-bg); border: 1px solid var(--card-border); font-size: 12px; color: var(--text-muted); cursor: pointer; margin-bottom: 8px; user-select: none; }

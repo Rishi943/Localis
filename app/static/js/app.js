@@ -5379,7 +5379,9 @@ function buildMessageHTML(role, text) {
           <div class="msg-avatar ${isUser ? 'user' : 'ai'}">${initial}</div>
           <div class="msg-body">
             <div class="msg-name">${escapeHtml(displayName)}</div>
-            <div class="msg-text">${escapeHtml(text)}</div>
+            <div class="msg-bubble">
+              <div class="msg-text">${escapeHtml(text)}</div>
+            </div>
           </div>
         </div>`;
 }
@@ -5398,21 +5400,28 @@ function buildActionCardHTML(type, title, subtitle) {
 }
 
 // --- MESSAGE ACTION CHIPS ---
-// Appends Copy / Regenerate / Continue chips below a completed assistant message row.
+// Appends Copy / Regenerate / Like icon buttons below a completed assistant message row.
 function addMessageActionChips(msgRowEl, plainText) {
     const chips = document.createElement('div');
     chips.className = 'msg-actions';
+    // Use inline SVGs — ico-copy/ico-refresh/ico-thumb-up are not in SVG defs
     chips.innerHTML = `
-        <button class="msg-action-chip" data-action="copy">Copy</button>
-        <button class="msg-action-chip" data-action="regen">Regenerate</button>
-        <button class="msg-action-chip" data-action="continue">Continue</button>
+        <button class="msg-action-icon" data-action="copy" title="Copy">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+        <button class="msg-action-icon" data-action="regen" title="Regenerate">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 .49-3"/></svg>
+        </button>
+        <button class="msg-action-icon" data-action="like" title="Helpful">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+        </button>
     `;
     chips.querySelector('[data-action="copy"]').onclick = () =>
         navigator.clipboard.writeText(plainText);
     chips.querySelector('[data-action="regen"]').onclick = () =>
         api.chat(state.lastUserMessage);
-    chips.querySelector('[data-action="continue"]').onclick = () =>
-        api.chat('Please continue.');
+    chips.querySelector('[data-action="like"]').onclick = (e) =>
+        e.currentTarget.classList.toggle('active');
     msgRowEl.appendChild(chips);
 }
 
