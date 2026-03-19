@@ -311,6 +311,25 @@ def init_db():
         )
     """)
 
+    # 9. Notes and Reminders (Phase 02.1)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS notes (
+            id TEXT PRIMARY KEY,
+            content TEXT NOT NULL,
+            note_type TEXT DEFAULT 'note',
+            due_at TEXT,
+            color TEXT DEFAULT 'default',
+            pinned INTEGER DEFAULT 0,
+            dismissed INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+    c.execute("""
+        CREATE INDEX IF NOT EXISTS idx_notes_due_active
+        ON notes(due_at, dismissed)
+    """)
+
     # Seed tutorial flag ONLY if this is a fresh install (or recreated after backup)
     if is_new_db:
         now = datetime.utcnow().isoformat()
