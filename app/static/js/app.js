@@ -154,11 +154,32 @@ function parseThinking(text) {
     };
 }
 
+// Toggle helper for thinking-block expand/collapse.
+function toggleThinking(btn) {
+    const block = btn.closest('.thinking-block');
+    if (!block) return;
+    block.classList.toggle('expanded');
+}
+
 // Render thinking blocks as collapsible pills (used in final render step).
 function renderThinkingPills(text) {
     return text.replace(/<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>/gi, (_, content) => {
         const id = 'think-' + Math.random().toString(36).slice(2, 8);
-        return `<div class="thinking-pill" onclick="document.getElementById('${id}').classList.toggle('expanded')">&#9658; Thinking...</div><div class="thinking-body" id="${id}">${escapeHtml(content.trim())}</div>`;
+        const trimmed = content.trim();
+        const wordCount = trimmed ? trimmed.split(/\s+/).length : 0;
+        const approxSecs = wordCount > 0 ? Math.max(1, Math.round(wordCount / 130)) : 0;
+        return `
+<div class="thinking-block">
+  <button class="thinking-header" onclick="toggleThinking(this)">
+    <svg width="14" height="14" style="color:rgba(255,255,255,0.4)"><use href="#ico-memory"/></svg>
+    <span class="thinking-title">Reasoning</span>
+    <span class="thinking-hint">${approxSecs > 0 ? `${approxSecs}s · ` : ''}click to expand</span>
+    <svg class="thinking-chevron" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="3,3 5,7 7,3"/>
+    </svg>
+  </button>
+  <div class="thinking-body" id="${id}">${escapeHtml(trimmed)}</div>
+</div>`;
     });
 }
 

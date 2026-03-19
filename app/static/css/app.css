@@ -1171,10 +1171,73 @@ body.app-ready #frt-overlay { display: none !important; }
 
 .mono { font-family: 'JetBrains Mono', monospace; }
 
-/* ── Thinking block (collapsible pill) ── */
-.thinking-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: var(--r-pill); background: var(--card-bg); border: 1px solid var(--card-border); font-size: 12px; color: var(--text-muted); cursor: pointer; margin-bottom: 8px; user-select: none; }
-.thinking-body { display: none; padding: 10px 14px; margin-bottom: 8px; border-left: 2px solid var(--border-subtle); font-size: 13px; color: var(--text-muted); font-family: var(--font-mono); white-space: pre-wrap; }
-.thinking-body.expanded { display: block; }
+/* ── Thinking Block ──────────────────────────────────────── */
+.thinking-block {
+  margin-bottom: 8px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.07);
+}
+
+.thinking-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.04);
+  border: none;
+  color: rgba(255,255,255,0.5);
+  font-size: 12px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.thinking-header:hover { background: rgba(255,255,255,0.07); }
+
+.thinking-title {
+  font-weight: 500;
+  color: rgba(255,255,255,0.6);
+}
+
+.thinking-hint {
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  margin-left: 2px;
+}
+
+.thinking-chevron {
+  margin-left: auto;
+  transition: transform 0.2s;
+  color: rgba(255,255,255,0.25);
+}
+
+.thinking-block.expanded .thinking-chevron {
+  transform: rotate(180deg);
+}
+
+.thinking-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
+  font-style: italic;
+  font-size: 13px;
+  color: rgba(255,255,255,0.45);
+  background: rgba(0,0,0,0.25);
+  padding: 0 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.thinking-block.expanded .thinking-body {
+  max-height: 600px;
+  padding: 10px 12px;
+  overflow-y: auto;
+}
+
+/* Remove old thinking-pill styles */
+.thinking-pill { display: none; }
 
 /* ── Welcome state (empty session) ────── */
 .welcome-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 12px; text-align: center; }
