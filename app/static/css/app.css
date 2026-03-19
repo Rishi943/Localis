@@ -455,7 +455,7 @@ body.app-ready .app-container { display: flex; }
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 10px;
+  padding: 16px 10px 8px 10px;
   background: var(--bg-panel);
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 12px;
@@ -476,6 +476,23 @@ body.app-ready .app-container { display: flex; }
   background: rgba(255,255,255,0.08);
   margin: 0 4px;
   flex-shrink: 0;
+}
+
+.action-group[data-label] {
+  position: relative;
+  padding-top: 14px;
+}
+
+.action-group[data-label]::before {
+  content: attr(data-label);
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.25);
+  text-transform: uppercase;
 }
 
 .ac-btn {
