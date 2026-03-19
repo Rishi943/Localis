@@ -192,6 +192,74 @@ PROMPT_DEFAULT = "You are a helpful AI assistant."
 PROMPT_PIRATE = "You are a friendly pirate captain. Speak like a pirate, but still be helpful. Use pirate slang naturally."
 
 
+# Notes Tool Schemas (for router LLM tool calling)
+# Referenced by execute_tool() and can be injected into any router system prompt.
+# Uses the same function-calling schema format as assist.py _build_tool_schema().
+NOTES_TOOL_SCHEMAS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "notes.add",
+            "description": (
+                "Save a new note or reminder to the user's notepad. "
+                "Use for: 'add note', 'remember this', 'remind me to X at Y time'. "
+                "For reminders, resolve relative times (tomorrow, in 2 hours, end of day) "
+                "to ISO8601 UTC using the current datetime provided in the system context. "
+                "Defaults: 'tomorrow' with no time → 9:00 AM user local time converted to UTC; "
+                "'end of day' → 17:00 local time converted to UTC."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "description": "The note or reminder content."
+                    },
+                    "note_type": {
+                        "type": "string",
+                        "enum": ["note", "reminder"],
+                        "description": "'note' for plain notes, 'reminder' for timed reminders."
+                    },
+                    "due_at": {
+                        "type": "string",
+                        "description": (
+                            "ISO8601 UTC datetime for reminders (e.g. '2026-03-20T09:00:00Z'). "
+                            "Null for plain notes."
+                        )
+                    },
+                    "color": {
+                        "type": "string",
+                        "enum": ["default", "deep-blue", "dark-teal", "amber-night", "rose-night", "mauve-glass"],
+                        "description": "Card background color in the notes dashboard (optional, default 'default')."
+                    }
+                },
+                "required": ["content", "note_type"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "notes.retrieve",
+            "description": (
+                "Retrieve the user's saved notes and reminders to answer questions about them. "
+                "Use for: 'what did I note about X', 'show my notes', 'do I have a reminder about Y'. "
+                "Results are injected into system prompt context only — not added to conversation history."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search term to filter notes by content. Leave empty to retrieve all notes."
+                    }
+                }
+            }
+        }
+    }
+]
+
+
 # ------------------------------
 # Helper Functions
 # ------------------------------
