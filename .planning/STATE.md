@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02.1-03-PLAN.md
-last_updated: "2026-03-19T13:12:02.457Z"
+stopped_at: Completed 02.1-02-PLAN.md
+last_updated: "2026-03-19T13:12:54.068Z"
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 22
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # Project State
@@ -62,6 +62,7 @@ Plan: 1 of 6
 | Phase 02-financial-advisor P10 | 2 | 2 tasks | 1 files |
 | Phase 02.1 P01 | 2 | 3 tasks | 3 files |
 | Phase 02.1 P03 | 2 | 3 tasks | 3 files |
+| Phase 02.1 P02 | 5 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,8 @@ Recent decisions affecting current work:
 - [Phase 02.1]: Notes module follows register_*(app, db_path) pattern from finance.py — same _db(request) helper pattern
 - [Phase 02.1]: notes.add / notes.retrieve not in ALLOWED_TOOLS in main.py yet — e2e tests validate backing endpoints directly; Plan 05 will wire tools into chat pipeline
 - [Phase 02.1]: chime.mp3 generated as true MPEG ADTS via ffmpeg libmp3lame (880 Hz A5, exponential decay, 0.5s)
+- [Phase 02.1]: notes.add/notes.retrieve access SQLite directly via database.DB_NAME — no HTTP hop to /notes/add endpoint
+- [Phase 02.1]: NOTES_TOOL_SCHEMAS defined as module-level constant in main.py — canonical schema reference for future LLM router integration
 
 ### Roadmap Evolution
 
@@ -135,6 +138,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T13:12:02.454Z
-Stopped at: Completed 02.1-03-PLAN.md
+Last session: 2026-03-19T13:12:54.066Z
+Stopped at: Completed 02.1-02-PLAN.md
 Resume file: None
