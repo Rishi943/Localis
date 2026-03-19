@@ -816,7 +816,7 @@ body.app-ready .app-container { display: flex; }
 }
 .rsb-model-trigger:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.18); }
 .rsb-model-trigger-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.rsb-chevron { flex-shrink: 0; color: rgba(255,255,255,.3); transition: transform .2s; }
+.rsb-chevron { flex-shrink: 0; color: rgba(255,255,255,.3); transition: transform .2s; margin-left: auto; }
 .rsb-model-trigger.open .rsb-chevron { transform: rotate(180deg); }
 
 .rsb-model-list {
@@ -868,6 +868,7 @@ body.app-ready .app-container { display: flex; }
 
 /* System prompt presets */
 .rsb-presets { display: flex; gap: 4px; flex-wrap: wrap; }
+#rsb-sec-prompt .rsb-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .rsb-pchip { padding: 6px 14px; border-radius: 100px; font-size: 12px; font-weight: 600; background: var(--card-bg); border: 1px solid var(--card-border); color: rgba(255,255,255,.4); cursor: pointer; }
 .rsb-pchip.active { background: var(--accent-soft); border-color: var(--accent-border); color: #a5b4fc; }
 .rsb-edit-btn { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 8px; background: var(--card-bg); border: 1px solid var(--card-border); border-top-color: rgba(255,255,255,.12); font-size: 12px; color: rgba(255,255,255,.48); cursor: pointer; }
