@@ -1109,6 +1109,7 @@ async def chat_endpoint(req: ChatRequest):
     # ---------------------------------------------------------
 
     tool_messages: List[Dict[str, str]] = []
+    tool_results: list = []
     tier_a_proposals = []
     # Limit history to 20 most recent messages for faster loading in long sessions
     MAX_HISTORY_MESSAGES = 20
@@ -1220,7 +1221,8 @@ async def chat_endpoint(req: ChatRequest):
                 "tool_name": tool_name,
                 "message": None,
                 "success": False,
-                "error": None
+                "error": None,
+                "event_data": None
             }
 
             try:
@@ -1246,6 +1248,17 @@ async def chat_endpoint(req: ChatRequest):
                     }
                     result["success"] = True
                     logger.info("Tool web_search completed")
+                    # Parse plain text results for frontend pill
+                    _parsed = []
+                    for _line in res.strip().split("\n"):
+                        if not _line or _line.startswith("ERROR"):
+                            continue
+                        _bracket = _line.find("] ")
+                        _rest = _line[_bracket + 2:] if _bracket != -1 else _line
+                        _colon = _rest.find(": ")
+                        if _colon != -1:
+                            _parsed.append({"title": _rest[:_colon], "snippet": _rest[_colon + 2:], "url": ""})
+                    result["event_data"] = {"results": _parsed}
 
                 # --- RAG RETRIEVE ---
                 elif tool_name == "rag_retrieve":
@@ -1344,6 +1357,7 @@ async def chat_endpoint(req: ChatRequest):
                         }
                         result["success"] = True
                         logger.info(f"Tool memory_write completed: {saved_key}")
+                        result["event_data"] = {"key": saved_key}
                     else:
                         skip_reason = write_result.get("skipped_reason", "unknown")
                         result["message"] = {
@@ -1574,6 +1588,14 @@ async def chat_endpoint(req: ChatRequest):
         for prop in tier_a_proposals:
             prop["target"] = "tier_a"
             yield f"data: {json.dumps({'content': '', 'stop': False, 'proposal': prop})}\n\n"
+
+        # Emit tool result events for frontend pill rendering
+        for _tr in tool_results:
+            if isinstance(_tr, Exception):
+                continue
+            if not _tr.get("success") or not _tr.get("event_data"):
+                continue
+            yield f"data: {json.dumps({'event_type': 'tool_result', 'tool': _tr['tool_name'], **_tr['event_data']})}\n\n"
 
         def _gen_worker():
             try:

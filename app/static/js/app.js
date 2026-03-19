@@ -6649,31 +6649,26 @@ const api = {
                     // Throttle updates to avoid excessive DOM reflows
                     scheduleUpdate();
 
-                    // Detect tool results and show notifications
-                    const content = payload.content;
+                }
+                // Handle tool_result events (emitted before LLM generation starts)
+                if (payload.event_type === 'tool_result') {
+                    const chatHistory = document.getElementById('chat-history');
+                    if (!chatHistory) return;
 
-                    // RAG errors
-                    if (content.includes('[ERROR]') && (content.includes('RAG') || content.includes('rag_retrieve'))) {
-                        if (content.includes('unavailable') || content.includes('not ready')) {
-                            showToast('RAG is not available. Check your files.', 'error');
-                        }
+                    if (payload.tool === 'web_search' && Array.isArray(payload.results)) {
+                        const count = payload.results.length;
+                        chatHistory.insertAdjacentHTML('beforeend',
+                            buildToolPillHTML('search', 'web.search', `${count} result${count !== 1 ? 's' : ''}`,
+                                buildSearchDetailHTML(payload.results), true)
+                        );
+                    } else if (payload.tool === 'memory_write' && payload.key) {
+                        showToast(`Saved to memory: ${payload.key}`, 'success');
+                        chatHistory.insertAdjacentHTML('beforeend',
+                            buildToolPillHTML('memory', 'memory.write', `Saved: ${payload.key}`,
+                                buildMemoryDetailHTML(payload.key, ''), true)
+                        );
                     }
-
-                    // Memory write success
-                    if (content.includes('[TOOL RESULT: memory_write]') && content.includes('Successfully saved')) {
-                        // Extract key from message if possible
-                        const keyMatch = content.match(/Tier [AB]\): (\w+)/);
-                        const key = keyMatch ? keyMatch[1] : 'information';
-                        showToast(`Saved to memory: ${key}`, 'success');
-                        // Insert memory action card into chat
-                        const chatHistory = document.getElementById('chat-history');
-                        if (chatHistory) {
-                            chatHistory.insertAdjacentHTML('beforeend',
-                                buildToolPillHTML('memory', 'memory.write', `Saved: ${key}`,
-                                    buildMemoryDetailHTML(key, ''), true)
-                            );
-                        }
-                    }
+                    return;
                 }
                 // Capture stats event
                 if (payload.event_type === 'stats') {

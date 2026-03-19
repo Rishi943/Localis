@@ -480,28 +480,6 @@ body.app-ready .app-container { display: flex; }
 }
 .msg-stats span { white-space: nowrap; }
 
-/* ── Action cards (tool results) ─── */
-.action-card {
-  display: flex; align-items: center; gap: 9px;
-  padding: 7px 12px;
-  border-radius: 0 8px 8px 0;
-  font-size: 11px;
-  max-width: 360px;
-}
-.action-card.home {
-  background: rgba(16,185,129,.07);
-  border: 1px solid rgba(16,185,129,.18);
-  border-left: 3px solid var(--status-green);
-  color: #6ee7b7;
-}
-.action-card.memory {
-  background: rgba(90,140,255,.07);
-  border: 1px solid rgba(90,140,255,.18);
-  border-left: 3px solid var(--accent-primary);
-  color: #a5b4fc;
-}
-.action-card-title { font-weight: 600; }
-.action-card-sub   { font-size: 9px; opacity: .5; margin-top: 1px; }
 
 /* ── Mode pills (legacy — hidden, kept for JS class-selector compat) ── */
 .mode-pills { display: none; }
