@@ -65,6 +65,21 @@ Plans:
 - [ ] 02-09-PLAN.md — Chart.js integration: bundle, script tag, line + donut renderers wired to _loadDashboard
 - [ ] 02-10-PLAN.md — UI completion: 8-category onboarding, month-grouped transactions, budget sidebar renderer, refresh button
 
+### Phase 02.1: Notes and Reminders — voice-triggered Google Keep-style notepad with timed reminder pings (INSERTED)
+
+**Goal:** Voice-triggered Google Keep-style notepad — say "Hey Jarvis, add note: X" or "remind me to X at Y" to create notes/reminders stored in SQLite, displayed in a Midnight Glass masonry grid dashboard, with timed reminder delivery via chime + Web Notifications
+**Requirements**: (none — driven by CONTEXT.md decisions)
+**Depends on:** Phase 2
+**Plans:** 6 plans
+
+Plans:
+- [ ] 02.1-01-PLAN.md — DB schema (notes table) + app/notes.py backend module (6 endpoints: add, list, due, update, delete, dismiss)
+- [ ] 02.1-02-PLAN.md — Tool integration: notes.add + notes.retrieve in ALLOWED_TOOLS, execute_tool branches, router prompt schemas
+- [ ] 02.1-03-PLAN.md — Test suite: 6 unit tests (test_notes.py) + 3 integration tests (test_notes_e2e.py) + chime.mp3 audio asset
+- [ ] 02.1-04-PLAN.md — HTML/CSS: notes SVG icon, RSB button with badge, notes-dashboard overlay, masonry grid, 6 card tints, overdue pulse, undo toast
+- [ ] 02.1-05-PLAN.md — JS: notesUI IIFE (open/close/render/create/edit/delete), reminder polling (30s), Web Notifications, post-chat refresh hook
+- [ ] 02.1-06-PLAN.md — Human verification checkpoint: all functional areas signed off
+
 ### Phase 3: LAB
 **Goal**: Users can tune model inference parameters through the UI and have those settings persist across sessions, giving students and power users full control without editing config files
 **Depends on**: Phase 2
@@ -120,6 +135,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. UI Polish | 6/6 | Complete | 2026-03-15 |
 | 2. Financial Advisor | 10/10 | Complete   | 2026-03-18 |
+| 2.1. Notes and Reminders | 0/6 | In progress | - |
 | 3. LAB | 0/TBD | Not started | - |
 | 4. News RSS Feed | 0/TBD | Not started | - |
 | 5. YouTube Music via HA | 0/TBD | Not started | - |
