@@ -2595,6 +2595,363 @@ const financeUI = (function() {
     return { open, close, init, _activateTab, _loadDashboard, _checkOnboarding, _sendFinanceChat };
 })();
 
+// =========================================================
+// NOTES UI (Phase 02.1)
+// =========================================================
+const notesUI = (() => {
+    let _isOpen = false;
+    let _notes = [];
+
+    // Local DOM element cache (prefixed with _ to avoid conflict with global els)
+    const _el = {
+        dashboard: null,
+        grid: null,
+        btnOpen: null,
+        btnClose: null,
+        createCard: null,
+        createInput: null,
+        createPlaceholder: null,
+        empty: null,
+        badge: null,
+    };
+
+    // ---- Helpers ----
+
+    function _isOverdue(note) {
+        if (note.note_type !== 'reminder' || !note.due_at) return false;
+        return new Date(note.due_at) <= new Date();
+    }
+
+    function _formatDueDate(isoStr) {
+        if (!isoStr) return '';
+        try {
+            const d = new Date(isoStr);
+            return d.toLocaleString(undefined, {
+                month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
+        } catch (e) {
+            return isoStr;
+        }
+    }
+
+    function _escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // ---- Render ----
+
+    function _renderNotes(notes) {
+        if (!_el.grid) return;
+
+        // Keep the create card, remove all note cards
+        const createCard = _el.grid.querySelector('.note-card-create');
+        _el.grid.innerHTML = '';
+        if (createCard) _el.grid.appendChild(createCard);
+
+        // Empty state
+        if (notes.length === 0) {
+            _el.empty?.classList.remove('hidden');
+        } else {
+            _el.empty?.classList.add('hidden');
+        }
+
+        // Count overdue reminders for badge
+        let overdueCount = 0;
+
+        notes.forEach((note) => {
+            const overdue = _isOverdue(note);
+            if (overdue) overdueCount++;
+
+            const card = document.createElement('div');
+            card.className = `note-card card-color-${note.color || 'default'}`;
+            card.dataset.noteId = note.id;
+            if (note.pinned) card.classList.add('card-pinned');
+            if (overdue) card.classList.add('card-overdue-pulse');
+
+            // Build card HTML
+            let dueBadge = '';
+            if (note.note_type === 'reminder' && note.due_at) {
+                const overdueLabel = overdue
+                    ? '<span class="card-overdue-badge">Overdue</span>'
+                    : '';
+                dueBadge = `<div class="card-due">\u23F0 ${_escapeHtml(_formatDueDate(note.due_at))} ${overdueLabel}</div>`;
+            }
+
+            card.innerHTML = `
+                <div class="card-controls">
+                    <button class="btn-card-delete" title="Delete note (5s undo)" data-note-id="${note.id}">\uD83D\uDDD1</button>
+                </div>
+                <div class="card-content-wrap" data-note-id="${note.id}">
+                    <div class="card-text">${_escapeHtml(note.content)}</div>
+                    ${dueBadge}
+                </div>
+            `;
+
+            // Wire click-to-edit on content
+            const contentWrap = card.querySelector('.card-content-wrap');
+            contentWrap?.addEventListener('click', (e) => {
+                if (!card.classList.contains('editing')) {
+                    _enterEditMode(card, note);
+                }
+            });
+
+            // Wire delete button
+            const delBtn = card.querySelector('.btn-card-delete');
+            delBtn?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                _deleteNote(note.id, card);
+            });
+
+            _el.grid.appendChild(card);
+        });
+
+        // Update badge
+        _updateBadge(overdueCount);
+    }
+
+    function _updateBadge(count) {
+        if (!_el.badge) return;
+        if (count > 0) {
+            _el.badge.textContent = count;
+            _el.badge.classList.remove('hidden');
+        } else {
+            _el.badge.classList.add('hidden');
+        }
+    }
+
+    // ---- Inline Edit ----
+
+    function _enterEditMode(card, note) {
+        card.classList.add('editing');
+        const contentWrap = card.querySelector('.card-content-wrap');
+        const textarea = document.createElement('textarea');
+        textarea.className = 'card-textarea';
+        textarea.value = note.content;
+
+        if (contentWrap) {
+            contentWrap.innerHTML = '';
+            contentWrap.appendChild(textarea);
+        }
+        textarea.focus();
+        textarea.select();
+
+        async function _saveEdit() {
+            const newContent = textarea.value.trim();
+            if (!newContent) {
+                _deleteNote(note.id, card);
+                return;
+            }
+            if (newContent === note.content) {
+                card.classList.remove('editing');
+                if (contentWrap) contentWrap.innerHTML = `<div class="card-text">${_escapeHtml(note.content)}</div>`;
+                return;
+            }
+            try {
+                const res = await fetch(`/notes/${note.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: newContent })
+                });
+                if (res.ok) {
+                    note.content = newContent;
+                    card.classList.remove('editing');
+                    if (contentWrap) contentWrap.innerHTML = `<div class="card-text">${_escapeHtml(newContent)}</div>`;
+                } else {
+                    _showToast('Failed to save note. Please try again.', null, null);
+                    card.classList.remove('editing');
+                }
+            } catch (err) {
+                _showToast('Failed to save note. Please try again.', null, null);
+                card.classList.remove('editing');
+            }
+        }
+
+        textarea.addEventListener('blur', _saveEdit);
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                card.classList.remove('editing');
+                if (contentWrap) contentWrap.innerHTML = `<div class="card-text">${_escapeHtml(note.content)}</div>`;
+                textarea.removeEventListener('blur', _saveEdit);
+            }
+        });
+    }
+
+    // ---- Create Card ----
+
+    function _wireCreateCard() {
+        if (!_el.createCard || !_el.createInput) return;
+
+        _el.createCard.addEventListener('click', () => {
+            if (_el.createCard.classList.contains('editing')) return;
+            _el.createCard.classList.add('editing');
+            _el.createInput?.classList.remove('hidden');
+            _el.createPlaceholder?.classList.add('hidden');
+            _el.createInput?.focus();
+        });
+
+        async function _saveNewNote() {
+            const content = _el.createInput?.value.trim();
+            if (!content) {
+                _cancelCreate();
+                return;
+            }
+            try {
+                const res = await fetch('/notes/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content, note_type: 'note' })
+                });
+                if (res.ok) {
+                    _cancelCreate();
+                    await refresh();
+                } else {
+                    _showToast('Failed to save note. Please try again.', null, null);
+                    _cancelCreate();
+                }
+            } catch (err) {
+                _showToast('Failed to save note. Please try again.', null, null);
+                _cancelCreate();
+            }
+        }
+
+        function _cancelCreate() {
+            _el.createCard.classList.remove('editing');
+            _el.createInput?.classList.add('hidden');
+            _el.createPlaceholder?.classList.remove('hidden');
+            if (_el.createInput) _el.createInput.value = '';
+        }
+
+        _el.createInput?.addEventListener('blur', _saveNewNote);
+        _el.createInput?.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                _cancelCreate();
+                _el.createInput?.removeEventListener('blur', _saveNewNote);
+            }
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                _el.createInput?.removeEventListener('blur', _saveNewNote);
+                _saveNewNote();
+            }
+        });
+    }
+
+    // ---- Delete with Undo Toast ----
+
+    function _deleteNote(noteId, cardEl) {
+        // Optimistic: mark deleting visually
+        cardEl.style.opacity = '0.4';
+
+        let undone = false;
+        _showToast(
+            'Note deleted.',
+            'Undo',
+            () => {
+                undone = true;
+                cardEl.style.opacity = '';
+            }
+        );
+
+        setTimeout(async () => {
+            if (!undone) {
+                try {
+                    await fetch(`/notes/${noteId}`, { method: 'DELETE' });
+                } catch (e) {
+                    // Ignore network error — card was optimistically removed
+                }
+                cardEl.remove();
+                await refresh();
+            }
+        }, 5000);
+    }
+
+    // ---- Undo Toast ----
+
+    function _showToast(message, undoLabel, onUndo) {
+        const existing = document.querySelector('.toast-undo');
+        if (existing) existing.remove();
+
+        const toast = document.createElement('div');
+        toast.className = 'toast-undo';
+
+        let html = `<span>${_escapeHtml(message)}</span>`;
+        if (undoLabel && onUndo) {
+            html += `<button class="btn-undo">${_escapeHtml(undoLabel)}</button>`;
+        }
+        html += `<button class="btn-dismiss">Dismiss</button>`;
+        toast.innerHTML = html;
+
+        document.body.appendChild(toast);
+
+        if (undoLabel && onUndo) {
+            toast.querySelector('.btn-undo')?.addEventListener('click', () => {
+                onUndo();
+                toast.remove();
+            });
+        }
+
+        toast.querySelector('.btn-dismiss')?.addEventListener('click', () => toast.remove());
+
+        setTimeout(() => {
+            if (toast.parentNode) toast.remove();
+        }, 5500);
+
+        return toast;
+    }
+
+    // ---- Public API ----
+
+    function init() {
+        _el.dashboard = document.querySelector('#notes-dashboard');
+        _el.grid = document.querySelector('#notes-grid');
+        _el.btnOpen = document.querySelector('#btn-notes-open');
+        _el.btnClose = document.querySelector('#btn-notes-close');
+        _el.createCard = document.querySelector('#notes-create-card');
+        _el.createInput = document.querySelector('#notes-create-input');
+        _el.createPlaceholder = document.querySelector('.notes-create-placeholder');
+        _el.empty = document.querySelector('#notes-empty');
+        _el.badge = document.querySelector('#notes-badge');
+
+        _el.btnOpen?.addEventListener('click', () => open());
+        _el.btnClose?.addEventListener('click', () => close());
+
+        _el.dashboard?.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') close();
+        });
+
+        _wireCreateCard();
+    }
+
+    async function open() {
+        if (!_el.dashboard) return;
+        _el.dashboard.classList.remove('hidden');
+        _isOpen = true;
+        _el.dashboard.focus();
+        await refresh();
+    }
+
+    function close() {
+        if (!_el.dashboard) return;
+        _el.dashboard.classList.add('hidden');
+        _isOpen = false;
+    }
+
+    async function refresh() {
+        try {
+            const res = await fetch('/notes/list');
+            if (!res.ok) return;
+            _notes = await res.json();
+            _renderNotes(_notes);
+        } catch (e) {
+            // Silently fail — notes grid stays at last render
+        }
+    }
+
+    return { init, open, close, refresh };
+})();
+
 FRT.els.text = document.getElementById('frt-text');
 FRT.els.optional = document.getElementById('frt-optional');
 FRT.els.btnNext = document.getElementById('frt-advance');
@@ -7526,6 +7883,7 @@ const startApp = async () => {
     wakewordUI.init().catch(e => Logger.debug('Wakeword', `init error: ${e}`));
     voiceStatusBar.init();
     financeUI.init();   // Finance panel — no model required
+    notesUI.init();     // Notes panel — no model required
 
     // Load system prompt
     api.loadSystemPrompt();
