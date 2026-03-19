@@ -2952,6 +2952,70 @@ const notesUI = (() => {
     return { init, open, close, refresh };
 })();
 
+// =========================================================
+// REMINDER POLLING (Phase 02.1)
+// =========================================================
+let _reminderPollInterval = null;
+
+function startReminderPolling() {
+    if (_reminderPollInterval) return; // Don't double-start
+
+    _reminderPollInterval = setInterval(async () => {
+        try {
+            const res = await fetch('/notes/due');
+            if (!res.ok) return;
+            const dueReminders = await res.json();
+            if (!dueReminders || dueReminders.length === 0) return;
+
+            for (const reminder of dueReminders) {
+                // Play chime sound
+                try {
+                    const audio = new Audio('/static/sounds/chime.mp3');
+                    audio.volume = 0.5;
+                    audio.play().catch(() => {}); // Ignore autoplay policy errors
+                } catch (e) {}
+
+                // Browser Web Notification
+                if (typeof Notification !== 'undefined') {
+                    if (Notification.permission === 'granted') {
+                        new Notification(`Reminder: ${reminder.content.slice(0, 60)}`, {
+                            body: `${_reminderFormatTime(reminder.due_at)} — Localis`,
+                            tag: `localis-reminder-${reminder.id}`
+                        });
+                    } else if (Notification.permission === 'default') {
+                        // Request once — browser may not prompt if dismissed before
+                        Notification.requestPermission().catch(() => {});
+                    }
+                    // If 'denied', skip notification — fall back to chime + badge only
+                }
+
+                // Dismiss on server (optimistic)
+                try {
+                    await fetch(`/notes/dismiss/${reminder.id}`, { method: 'POST' });
+                } catch (e) {}
+            }
+
+            // Refresh notes grid to update overdue state
+            if (typeof notesUI !== 'undefined') {
+                notesUI.refresh();
+            }
+
+        } catch (e) {
+            // Silently ignore network errors — retry next interval
+        }
+    }, 30 * 1000); // 30 seconds per CONTEXT.md decision
+}
+
+function _reminderFormatTime(isoStr) {
+    if (!isoStr) return '';
+    try {
+        return new Date(isoStr).toLocaleString(undefined, {
+            month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+    } catch (e) { return isoStr; }
+}
+
 FRT.els.text = document.getElementById('frt-text');
 FRT.els.optional = document.getElementById('frt-optional');
 FRT.els.btnNext = document.getElementById('frt-advance');
@@ -6495,6 +6559,12 @@ const api = {
                 voiceUI._onStreamComplete(assistantMsgContent);
             }
 
+            // Refresh notes grid after every response if notes dashboard is open
+            // (handles voice-created notes appearing without manual refresh)
+            if (typeof notesUI !== 'undefined') {
+                notesUI.refresh(); // lightweight GET /notes/list — safe to call always
+            }
+
             // Add assistant response to tutorial history if in tutorial mode
             if (isTutorialChat) {
                 state.tutorialHistory.push({ role: 'assistant', content: assistantMsgContent });
@@ -7884,6 +7954,7 @@ const startApp = async () => {
     voiceStatusBar.init();
     financeUI.init();   // Finance panel — no model required
     notesUI.init();     // Notes panel — no model required
+    startReminderPolling(); // Reminder polling every 30s — fires Web Notification + chime for due reminders
 
     // Load system prompt
     api.loadSystemPrompt();
