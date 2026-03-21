@@ -3930,12 +3930,15 @@ const modePills = (() => {
     'memory_write': 'memory_write',
   };
 
+  // Selector covers both legacy .mode-pill and new .tb-btn toolbar buttons
+  const PILL_SELECTOR = '.mode-pill, .tb-btn[data-tool]';
+
   function _syncToToolsUI() {
     // Mirror pill state into toolsUI.selectedTools so the send path at line ~4150
     // continues to work without modification.
     if (!toolsUI || !toolsUI.selectedTools) return;
     toolsUI.selectedTools.clear();
-    document.querySelectorAll('.mode-pill.active').forEach(pill => {
+    document.querySelectorAll('.mode-pill.active, .tb-btn[data-tool].active').forEach(pill => {
       const tool = pill.dataset.tool;
       if (PILL_TO_TOOL[tool]) toolsUI.selectedTools.add(PILL_TO_TOOL[tool]);
     });
@@ -3954,7 +3957,7 @@ const modePills = (() => {
   }
 
   function init() {
-    document.querySelectorAll('.mode-pill').forEach(pill => {
+    document.querySelectorAll(PILL_SELECTOR).forEach(pill => {
       pill.addEventListener('click', () => _togglePill(pill));
     });
 
@@ -5156,22 +5159,18 @@ if(els.btnSidebarToggle) els.btnSidebarToggle.addEventListener('click', () => {
 const toggleSettings = (show) => {
     const rsb = els.rightSidebar;
     if (!rsb) return;
-    // Determine intended open/closed state
-    const shouldOpen = (show !== undefined) ? show : rsb.classList.contains('collapsed');
+    // Determine intended open/closed state — panel uses .hidden class
+    const shouldOpen = (show !== undefined) ? show : rsb.classList.contains('hidden');
     state.rightSidebarOpen = shouldOpen;
-    // Use .collapsed (CSS-controlled width) — .visible has no CSS rule
-    rsb.classList.toggle('collapsed', !shouldOpen);
+    // Use .hidden to show/hide the RSB panel
+    rsb.classList.toggle('hidden', !shouldOpen);
 
     // In tutorial mode, keep rail visible and use body class for narrator reflow
     if (document.body.classList.contains('first-run-tutorial')) {
         document.body.classList.toggle('frt-settings-open', shouldOpen);
         // Don't hide the rail in tutorial mode - it stays as the handle
     } else {
-        // Normal mode: hide rail when sidebar opens
-        if(els.rightRail) {
-            if(shouldOpen) els.rightRail.classList.add('hidden');
-            else els.rightRail.classList.remove('hidden');
-        }
+        // Normal mode: right-rail is always visible; no need to toggle it
     }
 };
 
@@ -7852,6 +7851,8 @@ const wakewordUI = (() => {
     function _updateToggleUI(active) {
         els.wakewordToggleBtn?.classList.toggle('active', active);
         els.wakewordToggleBtn?.setAttribute('title', active ? 'Wake word: ON' : 'Wake word: OFF');
+        // Toggle the visual track indicator (.on class → track slides to on position)
+        document.getElementById('wakeword-toggle-track')?.classList.toggle('on', active);
         if (active) voiceStatusBar.show(); else voiceStatusBar.hide();
     }
 
