@@ -819,7 +819,7 @@ const handleNarratorHook = (hook) => {
         }
 
         // Ensure right sidebar is closed
-        if (els.rightSidebar) els.rightSidebar.classList.remove('visible');
+        if (els.rightSidebar) els.rightSidebar.classList.add('hidden');
         state.rightSidebarOpen = false;
     }
 
@@ -867,8 +867,8 @@ const handleNarratorHook = (hook) => {
         }
 
         // Ensure sidebars are closed
-        if (els.rightSidebar) els.rightSidebar.classList.remove('visible');
-        if (els.sidebar) els.sidebar.classList.remove('collapsed');
+        if (els.rightSidebar) els.rightSidebar.classList.add('hidden');
+        if (els.sidebar) { els.sidebar.classList.remove('hidden'); document.getElementById('left-rail')?.classList.add('hidden'); }
         state.rightSidebarOpen = false;
     }
 
@@ -1085,8 +1085,9 @@ const handleNarratorHook = (hook) => {
         }
 
         // Collapse sidebar back to tutorial state
-        if (els.sidebar && !els.sidebar.classList.contains('collapsed')) {
-            els.sidebar.classList.add('collapsed');
+        if (els.sidebar && !els.sidebar.classList.contains('hidden')) {
+            els.sidebar.classList.add('hidden');
+            document.getElementById('left-rail')?.classList.remove('hidden');
         }
     }
 };
@@ -5147,6 +5148,7 @@ const toggleSettings = (show) => {
     state.rightSidebarOpen = shouldOpen;
     // Use .hidden to show/hide the RSB panel
     rsb.classList.toggle('hidden', !shouldOpen);
+    if (!shouldOpen) document.querySelectorAll('.rsb-rail-icon').forEach(b => b.classList.remove('active'));
 
     // In tutorial mode, keep rail visible and use body class for narrator reflow
     if (document.body.classList.contains('first-run-tutorial')) {
@@ -5553,7 +5555,7 @@ const endTutorial = async () => {
 
     // Unlock Sidebar
     state.sidebarCollapsed = false;
-    if(els.sidebar) els.sidebar.classList.remove('collapsed');
+    if(els.sidebar) { els.sidebar.classList.remove('hidden'); document.getElementById('left-rail')?.classList.add('hidden'); }
 
     // Unlock inputs
     if(els.prompt) {
@@ -8137,7 +8139,9 @@ const startApp = async () => {
 
     Logger.debug('App', 'Returning user, loading normal interface');
     state.sidebarCollapsed = true;
-    if(els.sidebar) els.sidebar.classList.add('collapsed');
+    if(els.sidebar) els.sidebar.classList.add('hidden');
+    const _lRail = document.getElementById('left-rail');
+    if(_lRail) _lRail.classList.remove('hidden');
     await api.getSessions();
     await api.loadHistory();
     updateAccent(AppSettings.get('accent', '#ffffff'));
