@@ -7,9 +7,7 @@ interface RsbPanelProps {
   startFrame: number;
 }
 
-const SWATCH_COLORS = [
-  '#f97316', '#fb923c', '#e5e5e5', '#ffffff', '#818cf8', '#c084fc', '#f43f5e',
-];
+const SWATCH_COLORS = ['#ffd27a', '#c084fc', '#ffd27a'];
 
 /** SVG bulb graphic matching real app's #rsb-bulb-graphic (110×110) */
 const BulbGraphic: React.FC<{ color: string; brightness: number }> = ({ color, brightness }) => {
@@ -67,10 +65,10 @@ export const RsbPanel: React.FC<RsbPanelProps> = ({ startFrame }) => {
   // Brightness animation
   const BRIGHTNESS_ANIM_START = BAR * 6;
   const rawBrightness = localFrame < BRIGHTNESS_ANIM_START
-    ? 27
-    : interpolate(localFrame, [BRIGHTNESS_ANIM_START, BRIGHTNESS_ANIM_START + BAR], [27, 80], { extrapolateRight: 'clamp' });
+    ? 90
+    : interpolate(localFrame, [BRIGHTNESS_ANIM_START, BRIGHTNESS_ANIM_START + BAR], [90, 40], { extrapolateRight: 'clamp' });
   const brightness = localFrame > BRIGHTNESS_ANIM_START + BAR
-    ? interpolate(localFrame, [BRIGHTNESS_ANIM_START + BAR, BRIGHTNESS_ANIM_START + BAR + BAR / 2], [80, 27], { extrapolateRight: 'clamp' })
+    ? interpolate(localFrame, [BRIGHTNESS_ANIM_START + BAR, BRIGHTNESS_ANIM_START + BAR + BAR / 2], [40, 100], { extrapolateRight: 'clamp' })
     : rawBrightness;
 
   const sectionBorder = '1px solid rgba(255,255,255,0.06)';
