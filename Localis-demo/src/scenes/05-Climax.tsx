@@ -104,7 +104,7 @@ export const ClimaxScene: React.FC = () => {
         {/* User bubble */}
         <div style={{ alignSelf: 'flex-end' }}>
           <ChatBubble role="user" startFrame={USER_BUBBLE_START} label="You" meta="12:32 · 5 tokens">
-            light banda kar
+            Turn off the light
           </ChatBubble>
         </div>
 
