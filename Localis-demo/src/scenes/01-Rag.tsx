@@ -34,11 +34,7 @@ export const RagScene: React.FC = () => {
 
   // Text reveal for response
   const FULL_TEXT = 'The file outlines Localis, a private AI assistant that runs entirely on your own computer using your GPU. Here\'s a summary:';
-  const localResponseFrame = Math.max(0, frame - ASSISTANT_START);
-  const charsVisible = Math.min(FULL_TEXT.length, Math.floor((localResponseFrame / 30) * 35));
-
-  // Bullet lines appear after the header text finishes
-  const bulletsStart = ASSISTANT_START + Math.ceil(FULL_TEXT.length / 35 * 30);
+  const bulletsStart = ASSISTANT_START + BEAT * 2;
 
   return (
     <Shell sceneDuration={DURATION}>
@@ -61,7 +57,7 @@ export const RagScene: React.FC = () => {
       <ZoomWrapper startFrame={ASSISTANT_ZOOM_START} style={{ alignSelf: 'flex-start' }}>
         <ChatBubble role="assistant" startFrame={ASSISTANT_START} label="Localis">
           <div style={{ fontFamily: fonts.ui, lineHeight: 1.7 }}>
-            <span>{FULL_TEXT.slice(0, charsVisible)}</span>
+            <span>{FULL_TEXT}</span>
             {/* Bullet points fade in after header */}
             {BULLETS.map((b, i) => {
               const bStart = bulletsStart + i * BAR;

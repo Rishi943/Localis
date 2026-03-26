@@ -34,8 +34,6 @@ export const WebSearchScene: React.FC = () => {
   const ASSISTANT_START = BAR * 2;    // f144
 
   const F1_TEXT = 'The next F1 race is the Japanese Grand Prix:';
-  const localAssistFrame = Math.max(0, frame - ASSISTANT_START);
-  const charsVisible = Math.min(F1_TEXT.length, Math.floor((localAssistFrame / 30) * 40));
 
   const detail1Opacity = interpolate(frame, [ASSISTANT_START + BAR, ASSISTANT_START + BAR + 20], [0, 1], {
     extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
@@ -68,7 +66,7 @@ export const WebSearchScene: React.FC = () => {
       {/* Assistant response */}
       <ChatBubble role="assistant" startFrame={ASSISTANT_START} label="Localis">
         <div style={{ fontFamily: fonts.ui, lineHeight: 1.7 }}>
-          <div>{F1_TEXT.slice(0, charsVisible)}</div>
+          <div>{F1_TEXT}</div>
           <div style={{ opacity: detail1Opacity, marginTop: 8, display: 'flex', gap: 8 }}>
             <span>📅</span>
             <span><strong>Date:</strong> Sun, Mar 29 — 1:00 a.m.</span>
