@@ -13,6 +13,8 @@ interface ShellProps {
   chatOpacity?: number;
   /** Extra dark overlay on bg (0–1) for climax scene */
   bgDimExtra?: number;
+  /** Index of active mode pill (0=Web, 1=Home, 2=Think, 3=Remember). -1 = none active. Default: -1 */
+  activePill?: number;
 }
 
 export const Shell: React.FC<ShellProps> = ({
@@ -21,6 +23,7 @@ export const Shell: React.FC<ShellProps> = ({
   rsbContent,
   chatOpacity = 1,
   bgDimExtra = 0,
+  activePill = -1,
 }) => {
   const frame = useCurrentFrame();
 
@@ -91,7 +94,7 @@ export const Shell: React.FC<ShellProps> = ({
       }}>
         <div>
           <div style={{ color: colors.text, fontSize: 15, fontWeight: 600, letterSpacing: '0.02em' }}>Localis</div>
-          <div style={{ color: colors.textDim, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase' }}>No Model Loaded</div>
+          <div style={{ color: colors.textDim, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Qwen2.5 · 7B</div>
         </div>
         <div style={{ flex: 1 }} />
         {/* Neural Engine Active */}
@@ -158,9 +161,9 @@ export const Shell: React.FC<ShellProps> = ({
           {['🌐 Web', '🏠 Home', '💭 Think', '📌 Remember'].map((label, i) => (
             <div key={i} style={{
               padding: '3px 10px', borderRadius: 20, fontSize: 11,
-              background: i === 1 ? 'rgba(59,130,246,0.2)' : 'transparent',
-              border: i === 1 ? `1px solid rgba(59,130,246,0.4)` : `1px solid ${colors.border}`,
-              color: i === 1 ? colors.accent : colors.textMuted,
+              background: i === activePill ? 'rgba(59,130,246,0.2)' : 'transparent',
+              border: i === activePill ? `1px solid rgba(59,130,246,0.4)` : `1px solid ${colors.border}`,
+              color: i === activePill ? colors.accent : colors.textMuted,
             }}>{label}</div>
           ))}
           <div style={{
