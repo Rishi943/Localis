@@ -1,9 +1,10 @@
 import React from 'react';
-import { useCurrentFrame, interpolate } from 'remotion';
+import { useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
 import { Shell } from '../components/Shell';
 import { ChatBubble } from '../components/ChatBubble';
 import { ToolCard } from '../components/ToolCard';
 import { ZoomWrapper } from '../components/ZoomWrapper';
+import { TypeWriter } from '../components/TypeWriter';
 import { colors, fonts } from '../lib/design';
 import { BEAT, BAR } from '../lib/beats';
 
@@ -27,11 +28,25 @@ const PriorChat: React.FC = () => (
 
 export const WebSearchScene: React.FC = () => {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
 
-  const USER_START = BEAT;            // f18
-  const TOOL_START = BAR;             // f72
-  const TOOL_ZOOM_START = BEAT * 6;   // f108
-  const ASSISTANT_START = BAR * 2;    // f144
+  // ── Timeline ──
+  const PILL_BOUNCE_FRAME = 0;         // bounce immediately
+  const USER_START = BEAT;             // f18 — user bubble + typewriter start
+  const PULL_BACK_START = BEAT * 3;    // f54 — camera pulls back to full view
+  const TOOL_START = BAR;              // f72
+  const TOOL_ZOOM_START = BEAT * 6;    // f108
+  const ASSISTANT_START = BAR * 2;     // f144
+
+  // ── Camera: start zoomed bottom (1.35) → pull back to full (1.0) ──
+  const pullBackProgress = spring({
+    frame: Math.max(0, frame - PULL_BACK_START),
+    fps,
+    config: { damping: 22, stiffness: 130 },
+  });
+  const cameraScale = frame < PULL_BACK_START
+    ? 1.35
+    : interpolate(pullBackProgress, [0, 1], [1.35, 1.0]);
 
   const F1_TEXT = 'The next F1 race is the Japanese Grand Prix:';
 
@@ -43,40 +58,59 @@ export const WebSearchScene: React.FC = () => {
   });
 
   return (
-    <Shell sceneDuration={DURATION}>
-      <PriorChat />
+    <div style={{ width: 1920, height: 1080, overflow: 'hidden' }}>
+      <div style={{
+        transform: `scale(${cameraScale})`,
+        transformOrigin: 'bottom center',
+        width: 1920, height: 1080,
+      }}>
+        <Shell
+          sceneDuration={DURATION}
+          activePill={0}
+          pillBounceStartFrame={PILL_BOUNCE_FRAME}
+        >
+          <PriorChat />
 
-      {/* User bubble */}
-      <div style={{ alignSelf: 'flex-end' }}>
-        <ChatBubble role="user" startFrame={USER_START} label="You">
-          When is the next F1 race?
-        </ChatBubble>
+          {/* User bubble with typewriter */}
+          <div style={{ alignSelf: 'flex-end' }}>
+            <ChatBubble role="user" startFrame={USER_START} label="You">
+              <TypeWriter
+                text="When is the next F1 race?"
+                startFrame={USER_START}
+                charsPerSecond={45}
+              />
+            </ChatBubble>
+          </div>
+
+          {/* Tool card */}
+          <ZoomWrapper
+            startFrame={TOOL_ZOOM_START}
+            style={{ alignSelf: 'flex-start', transformOrigin: 'top left' }}
+          >
+            <ToolCard
+              startFrame={TOOL_START}
+              toolName="web_search"
+              subtitle="3 results"
+              dotColor={colors.green}
+            />
+          </ZoomWrapper>
+
+          {/* Assistant response with typewriter */}
+          <ChatBubble role="assistant" startFrame={ASSISTANT_START} label="Localis">
+            <div style={{ fontFamily: fonts.ui, lineHeight: 1.7 }}>
+              <TypeWriter text={F1_TEXT} startFrame={ASSISTANT_START} charsPerSecond={45} />
+              <div style={{ opacity: detail1Opacity, marginTop: 8, display: 'flex', gap: 8 }}>
+                <span>📅</span>
+                <span><strong>Date:</strong> Sun, Mar 29 — 1:00 a.m.</span>
+              </div>
+              <div style={{ opacity: detail2Opacity, marginTop: 4, display: 'flex', gap: 8 }}>
+                <span>🏎️</span>
+                <span><strong>Track:</strong> Suzuka Circuit</span>
+              </div>
+            </div>
+          </ChatBubble>
+        </Shell>
       </div>
-
-      {/* Tool card */}
-      <ZoomWrapper startFrame={TOOL_ZOOM_START} style={{ alignSelf: 'flex-start' }}>
-        <ToolCard
-          startFrame={TOOL_START}
-          toolName="web_search"
-          subtitle="3 results"
-          dotColor={colors.green}
-        />
-      </ZoomWrapper>
-
-      {/* Assistant response */}
-      <ChatBubble role="assistant" startFrame={ASSISTANT_START} label="Localis">
-        <div style={{ fontFamily: fonts.ui, lineHeight: 1.7 }}>
-          <div>{F1_TEXT}</div>
-          <div style={{ opacity: detail1Opacity, marginTop: 8, display: 'flex', gap: 8 }}>
-            <span>📅</span>
-            <span><strong>Date:</strong> Sun, Mar 29 — 1:00 a.m.</span>
-          </div>
-          <div style={{ opacity: detail2Opacity, marginTop: 4, display: 'flex', gap: 8 }}>
-            <span>🏎️</span>
-            <span><strong>Track:</strong> Suzuka Circuit</span>
-          </div>
-        </div>
-      </ChatBubble>
-    </Shell>
+    </div>
   );
 };
