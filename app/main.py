@@ -207,6 +207,149 @@ PROMPT_DEFAULT = (
 PROMPT_PIRATE = "You are a friendly pirate captain. Speak like a pirate, but still be helpful. Use pirate slang naturally."
 
 
+def get_permitted_tools(web_search_on: bool) -> list:
+    """
+    Returns llama-cpp-python compatible tool definition list based on current config.
+    web_search_on: True when web_search_mode == 'on'.
+    HA tools included only when HA is configured.
+    Notes and memory tools always included.
+    """
+    from .assist import is_ha_configured
+    result = []
+
+    if web_search_on:
+        result.append({
+            "type": "function",
+            "function": {
+                "name": "web.search",
+                "description": (
+                    "Search the web for real-time information: current events, live scores, "
+                    "prices, news, weather. Do NOT use for things you can answer from knowledge."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Specific, time-anchored search query."}
+                    },
+                    "required": ["query"]
+                }
+            }
+        })
+
+    if is_ha_configured():
+        result.append({
+            "type": "function",
+            "function": {
+                "name": "home.set_light",
+                "description": (
+                    "Control the bedroom light (entity: light.rishi_room_light). "
+                    "Use only when the user explicitly asks to control the light."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "state": {"type": "string", "enum": ["on", "off"]},
+                        "brightness": {
+                            "type": "integer",
+                            "description": "Brightness 0-255. Omit to keep current.",
+                            "minimum": 0, "maximum": 255
+                        },
+                        "color_name": {
+                            "type": "string",
+                            "description": "Color name e.g. 'red', 'blue', 'warm white'. Omit to keep current."
+                        }
+                    },
+                    "required": ["state"]
+                }
+            }
+        })
+        result.append({
+            "type": "function",
+            "function": {
+                "name": "home.get_device_state",
+                "description": "Get the current state of a home device.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "entity_id": {
+                            "type": "string",
+                            "description": "HA entity ID e.g. 'light.rishi_room_light'"
+                        }
+                    },
+                    "required": ["entity_id"]
+                }
+            }
+        })
+
+    result.append({
+        "type": "function",
+        "function": {
+            "name": "notes.add",
+            "description": "Save a note or reminder. Use when user says 'remind me', 'add note', 'note this', 'jot down'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "content": {"type": "string"},
+                    "note_type": {"type": "string", "enum": ["note", "reminder"], "default": "note"},
+                    "due_at": {
+                        "type": "string",
+                        "description": "ISO8601 UTC datetime for reminders e.g. '2026-03-29T09:00:00Z'. Null for plain notes."
+                    }
+                },
+                "required": ["content"]
+            }
+        }
+    })
+    result.append({
+        "type": "function",
+        "function": {
+            "name": "notes.retrieve",
+            "description": "Retrieve saved notes and reminders. Use when user asks about their notes, tasks, or upcoming reminders.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "type": "string",
+                        "enum": ["all", "notes", "reminders", "due_soon"],
+                        "default": "all"
+                    }
+                }
+            }
+        }
+    })
+    result.append({
+        "type": "function",
+        "function": {
+            "name": "memory.retrieve",
+            "description": "Search the user's personal memory for relevant facts, preferences, and history.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"}
+                },
+                "required": ["query"]
+            }
+        }
+    })
+    result.append({
+        "type": "function",
+        "function": {
+            "name": "memory.write",
+            "description": "Save a fact about the user to memory. Use ONLY when user explicitly asks you to remember something.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "key": {"type": "string", "description": "Category key e.g. 'preference', 'fact'"},
+                    "value": {"type": "string"}
+                },
+                "required": ["key", "value"]
+            }
+        }
+    })
+
+    return result
+
+
 # Notes Tool Schemas (for router LLM tool calling)
 # Referenced by execute_tool() and can be injected into any router system prompt.
 # Uses the same function-calling schema format as assist.py _build_tool_schema().
