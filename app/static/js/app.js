@@ -6665,8 +6665,30 @@ const api = {
                     scheduleUpdate();
 
                 }
+                // Handle tool_start events (animate tool pills during execution)
+                if (payload.event_type === 'tool_start') {
+                    const toolName = payload.tool;
+                    const toolLabels = {
+                        'web.search': 'Searching web\u2026',
+                        'home.set_light': 'Controlling light\u2026',
+                        'home.get_device_state': 'Checking device\u2026',
+                        'notes.add': 'Saving note\u2026',
+                        'notes.retrieve': 'Loading notes\u2026',
+                        'memory.retrieve': 'Searching memory\u2026',
+                        'memory.write': 'Saving memory\u2026',
+                    };
+                    const pill = document.querySelector(`[data-tool="${toolName}"]`);
+                    if (pill) {
+                        pill.classList.add('tool-pill--loading');
+                        const labelEl = pill.querySelector('.tool-pill__label');
+                        if (labelEl) labelEl.textContent = toolLabels[toolName] || `${toolName}\u2026`;
+                    }
+                    return;
+                }
                 // Handle tool_result events (emitted before LLM generation starts)
                 if (payload.event_type === 'tool_result') {
+                    const pill = document.querySelector(`[data-tool="${payload.tool}"]`);
+                    if (pill) pill.classList.remove('tool-pill--loading');
                     const chatHistory = document.getElementById('chat-history');
                     if (!chatHistory) return;
 
