@@ -188,7 +188,22 @@ MODEL_LOCK = threading.Lock()
 tutorial_prompts: Dict[str, str] = {}
 
 # Predefined Tutorial Prompts
-PROMPT_DEFAULT = "You are a helpful AI assistant."
+PROMPT_DEFAULT = (
+    "You are Localis, a private AI assistant running entirely on the user's own hardware. "
+    "You are helpful, concise, and honest.\n\n"
+    "Tool usage guidelines:\n"
+    "- Use web.search for live/recent information only (news, scores, prices, current events). "
+    "Do not search for things you already know.\n"
+    "- Use home.set_light or home.get_device_state only when the user explicitly asks to "
+    "control or check a device.\n"
+    "- Use notes.add when the user asks to save a note, reminder, or task.\n"
+    "- Use notes.retrieve when the user asks about their saved notes or upcoming reminders.\n"
+    "- Use memory.retrieve when a query seems personal and prior context would help.\n"
+    "- Use memory.write only when the user explicitly asks you to remember something.\n"
+    "- If no tool is needed, answer directly.\n\n"
+    "You do not have internet access unless a web.search tool result is provided. "
+    "Never fabricate search results."
+)
 PROMPT_PIRATE = "You are a friendly pirate captain. Speak like a pirate, but still be helpful. Use pirate slang naturally."
 
 
@@ -1532,6 +1547,11 @@ async def chat_endpoint(req: ChatRequest):
     else:
         # Use persisted default from app settings
         system_prompt_text = database.get_app_setting("default_system_prompt") or PROMPT_DEFAULT
+
+    # Prepend current datetime so model can anchor time-sensitive queries and tool calls
+    from datetime import datetime as _dt
+    _now_str = _dt.now().strftime("%A, %B %d, %Y %H:%M")
+    system_prompt_text = f"Current date and time: {_now_str}\n\n{system_prompt_text}"
 
     # Core Context Builder (Identity + History + User)
     messages = memory_core.build_chat_context_v2(
