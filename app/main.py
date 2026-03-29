@@ -754,12 +754,8 @@ class ChatRequest(BaseModel):
     max_tokens: int = 1024
     top_p: float = 0.95
 
-    # Legacy flag (mapped to web_search_mode="enabled")
-    use_search: bool = False
-
-    # New Modes
-    web_search_mode: str = "off"  # "off", "enabled", "auto"
-    memory_mode: str = "auto"     # "off", "auto"
+    # Web Search Mode
+    web_search_mode: str = "off"  # "off" | "on"
     think_mode: bool = False      # Enable step-by-step reasoning in <thinking> tags
 
     # Search Provider Plumbing
@@ -767,12 +763,7 @@ class ChatRequest(BaseModel):
     web_search_custom_endpoint: str | None = None
     web_search_custom_api_key: str | None = None
 
-    # Manual Tools (frontend-driven)
-    # Can be simple strings ["web_search"] or structured objects [{"type": "web_search", "config": {...}}]
-    tool_actions: List[str | Dict[str, Any]] | None = None
-
-    # Assist Mode
-    assist_mode: bool = False
+    # Input Mode
     input_mode: str = "text"  # "text" | "voice"
 
 
@@ -1261,7 +1252,7 @@ async def debug_context_endpoint(
 # ------------------------------
 @app.post("/chat")
 async def chat_endpoint(req: ChatRequest):
-    logger.debug(f"[Chat] Session: {req.session_id[:12]}... think={req.think_mode} web={req.web_search_mode} mem={req.memory_mode}")
+    logger.debug(f"[Chat] Session: {req.session_id[:12]}... think={req.think_mode} web={req.web_search_mode}")
 
     global current_model
     if not current_model:
