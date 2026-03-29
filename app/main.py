@@ -408,7 +408,7 @@ async def execute_tool_call(
             conn = _sqlite3.connect(database.DB_NAME)
             conn.execute(
                 "INSERT INTO notes (id, content, note_type, due_at, color, pinned, dismissed, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, 'default', 0, NULL, ?, ?)",
+                "VALUES (?, ?, ?, ?, 'default', 0, 0, ?, ?)",
                 (note_id, content, note_type, due_at, now, now)
             )
             conn.commit()
