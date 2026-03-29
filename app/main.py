@@ -423,22 +423,22 @@ async def execute_tool_call(
             conn = _sqlite3.connect(database.DB_NAME)
             if note_filter == "reminders":
                 rows = conn.execute(
-                    "SELECT content, note_type, due_at FROM notes WHERE dismissed IS NULL "
+                    "SELECT content, note_type, due_at FROM notes WHERE dismissed = 0 "
                     "AND note_type='reminder' ORDER BY created_at DESC LIMIT 10"
                 ).fetchall()
             elif note_filter == "notes":
                 rows = conn.execute(
-                    "SELECT content, note_type, due_at FROM notes WHERE dismissed IS NULL "
+                    "SELECT content, note_type, due_at FROM notes WHERE dismissed = 0 "
                     "AND note_type='note' ORDER BY created_at DESC LIMIT 10"
                 ).fetchall()
             elif note_filter == "due_soon":
                 rows = conn.execute(
-                    "SELECT content, note_type, due_at FROM notes WHERE dismissed IS NULL "
+                    "SELECT content, note_type, due_at FROM notes WHERE dismissed = 0 "
                     "AND due_at IS NOT NULL ORDER BY due_at ASC LIMIT 10"
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT content, note_type, due_at FROM notes WHERE dismissed IS NULL "
+                    "SELECT content, note_type, due_at FROM notes WHERE dismissed = 0 "
                     "ORDER BY created_at DESC LIMIT 10"
                 ).fetchall()
             conn.close()
@@ -1542,12 +1542,14 @@ async def chat_endpoint(req: ChatRequest):
                             delta = chunk["choices"][0]["delta"]
                             content = delta.get("content", "")
                             if content:
-                                queue.put_nowait(content)
-                        queue.put_nowait(None)  # sentinel: generation complete
+                                loop.call_soon_threadsafe(queue.put_nowait, content)
+                        loop.call_soon_threadsafe(queue.put_nowait, None)  # sentinel
                 except Exception as e:
-                    queue.put_nowait(Exception(str(e)))
+                    loop.call_soon_threadsafe(queue.put_nowait, Exception(str(e)))
 
-            await loop.run_in_executor(None, _gen_pass2)
+            import threading as _threading
+            t = _threading.Thread(target=_gen_pass2, daemon=True)
+            t.start()
 
             while True:
                 item = await queue.get()
