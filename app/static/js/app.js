@@ -1639,12 +1639,12 @@ const voiceStatusBar = (() => {
 
     const STATE_MAP = {
         // wakewordUI states
-        idle:         { label: 'Say "Hey Jarvis"', tag: 'wakeword',  color: null    },
-        recording:    { label: 'Hey Jarvis — listening…', tag: 'triggered', color: 'amber' },
+        idle:         { label: 'Say "Hey Chotu"', tag: 'wakeword',  color: null    },
+        recording:    { label: 'Hey Chotu — listening…', tag: 'triggered', color: 'amber' },
         transcribing: { label: 'Transcribing…',    tag: 'stt',       color: 'amber' },
         submitting:   { label: 'Processing…',      tag: 'thinking',  color: 'amber' },
-        cooldown:     { label: 'Say "Hey Jarvis"', tag: 'wakeword',  color: null    },
-        disabled:     { label: 'Say "Hey Jarvis"', tag: 'wakeword',  color: null    },
+        cooldown:     { label: 'Say "Hey Chotu"', tag: 'wakeword',  color: null    },
+        disabled:     { label: 'Say "Hey Chotu"', tag: 'wakeword',  color: null    },
         // voiceUI states
         listening:    { label: 'Listening…',       tag: 'recording', color: 'amber' },
         confirming:   { label: 'Processing…',      tag: 'thinking',  color: 'amber' },
@@ -3307,7 +3307,7 @@ if(savedUrl) setWallpaperUrl(savedUrl);
 // --- TOOLS PICKER UI MODULE ---
 const toolsUI = {
     selectedTools: new Set(),
-    stickyTools: new Set(['rag_retrieve', 'web_search', 'assist_mode']), // Tools that stay selected
+    stickyTools: new Set(['rag_retrieve', 'web_search']), // Tools that stay selected
     toolConfigs: {}, // Store config values for each tool
     _didInit: false,
 
@@ -3870,7 +3870,6 @@ const toolsUI = {
             'web_search': 'Search Web',
             'memory_write': 'Remember',
             'memory_retrieve': 'Recall',
-            'assist_mode': 'Home Control'
         };
 
         const toolIcons = {
@@ -3878,7 +3877,6 @@ const toolsUI = {
             'web_search': '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>',
             'memory_write': '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path></svg>',
             'memory_retrieve': '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>',
-            'assist_mode': '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>'
         };
 
         const html = this.getSelectedTools().map(toolObj => {
@@ -3926,7 +3924,6 @@ const toolsUI = {
 const modePills = (() => {
   const PILL_TO_TOOL = {
     'web_search':   'web_search',
-    'assist_mode':  'assist_mode',
     'rag_upload':   null,           // triggers file picker, no mode flag
     'memory_write': 'memory_write',
   };
@@ -3964,10 +3961,6 @@ const modePills = (() => {
 
     // Restore sticky tools from toolsUI into pill state on init
     if (toolsUI && toolsUI.stickyTools) {
-      if (toolsUI.stickyTools.has('assist_mode')) {
-        const p = document.getElementById('pill-home');
-        if (p) p.classList.add('active');
-      }
       if (toolsUI.stickyTools.has('web_search')) {
         const p = document.getElementById('pill-web');
         if (p) p.classList.add('active');
@@ -5403,9 +5396,7 @@ if(els.sliders.temp && els.inputs.temp) {
 }
 
 if(els.btnSearchToggle) els.btnSearchToggle.addEventListener('click', () => {
-    const modes = ["off", "enabled", "auto"];
-    const nextIndex = (modes.indexOf(state.webSearchMode) + 1) % modes.length;
-    state.webSearchMode = modes[nextIndex];
+    state.webSearchMode = state.webSearchMode === 'on' ? 'off' : 'on';
     els.btnSearchToggle.textContent = `WEB SEARCH: ${state.webSearchMode.toUpperCase()}`;
     els.btnSearchToggle.classList.toggle('active', state.webSearchMode !== 'off');
 });
@@ -5431,11 +5422,12 @@ const updateStatus = (online, msg) => {
 
 function buildMessageHTML(role, text) {
     const isUser = role === 'user';
-    const initial = isUser ? ((window.userPreferredName)?.[0]?.toUpperCase() || 'U') : 'L';
+    const initial = isUser ? ((window.userPreferredName)?.[0]?.toUpperCase() || 'U') : '';
+    const avatarContent = isUser ? initial : '<img src="/static/logo.svg" width="28" height="28" alt="">';
     const displayName = isUser ? (window.userPreferredName || 'You') : 'Localis';
     return `
         <div class="msg-row ${isUser ? 'user' : 'ai'}">
-          <div class="msg-avatar ${isUser ? 'user' : 'ai'}">${initial}</div>
+          <div class="msg-avatar ${isUser ? 'user' : 'ai'}">${avatarContent}</div>
           <div class="msg-body">
             <div class="msg-name">${escapeHtml(displayName)}</div>
             <div class="msg-bubble">
@@ -6576,8 +6568,6 @@ const api = {
         // Detect tutorial chat mode
         const isTutorialChat = document.body.classList.contains('first-run-tutorial') &&
                                document.body.classList.contains('frt-split-with-chat');
-        const isAssistMode = !isTutorialChat && (voiceOpts?.assistMode || toolsUI.selectedTools.has('assist_mode'));
-
         try {
             let res;
             if (isTutorialChat) {
@@ -6605,7 +6595,6 @@ const api = {
                 });
             } else {
                 // Normal chat mode - use /chat with session
-                const selectedTools = toolsUI.getSelectedTools().filter(t => t.type !== 'assist_mode');
                 res = await fetch('/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -6614,10 +6603,8 @@ const api = {
                         max_tokens: 512,
                         temperature: parseFloat(els.inputs.temp.value),
                         session_id: state.sessionId,
-                        web_search_mode: isAssistMode ? 'off' : state.webSearchMode,
-                        tool_actions: selectedTools.length > 0 ? selectedTools : null,
+                        web_search_mode: state.webSearchMode,
                         think_mode: getSessionThinkMode(state.sessionId),
-                        assist_mode: isAssistMode,
                         input_mode: voiceOpts ? 'voice' : 'text'
                     })
                 });
@@ -6760,19 +6747,6 @@ const api = {
                 }
             }
             // If lastStreamStats is null (error/unavailable), footer shows 0.0 tok/s — clean degradation
-
-            // Voice status: signal done for Home Control commands
-            if (isAssistMode) {
-                voiceStatusBar.setDone();
-                // Insert home action card to surface the HA result in chat
-                const chatHistory = document.getElementById('chat-history');
-                if (chatHistory) {
-                    chatHistory.insertAdjacentHTML('beforeend',
-                        buildToolPillHTML('home', 'assist.action', 'Light controlled',
-                            buildLightDetailHTML('light.rishi_room_light', 'off'), true)
-                    );
-                }
-            }
 
             state.isGenerating = false;
 

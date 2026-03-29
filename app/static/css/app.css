@@ -90,10 +90,15 @@
   --r-pill: 100px;
 }
 
-html, body {
+html {
+  height: 100%;
+  background: #000; /* canvas fallback — visible when wallpaper layer is transparent */
+}
+
+body {
   height: 100%;
   font-family: var(--font-ui);
-  background: var(--bg-app);
+  background: transparent; /* let .app-background-layer show through */
   color: var(--text-primary);
   overflow: hidden;
 }
@@ -110,14 +115,14 @@ textarea { font-family: var(--font-ui); }
 .ms-fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
 
 /* ── App shell — hidden until app-ready ─── */
-.app-shell { display: none; height: 100vh; overflow: hidden; background: #000; position: relative; }
+.app-shell { display: none; height: 100vh; overflow: hidden; background: transparent; position: relative; }
 body.app-ready .app-shell { display: flex; }
 
 /* ── Left sidebar ──────────────────────────────────────────── */
 .lsb { width: 264px; flex-shrink: 0; border-right: 1px solid var(--border-subtle); display: flex; flex-direction: column; z-index: 10; position: relative; background: var(--bg-sidebar); backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter); }
 .lsb-inner { display: flex; flex-direction: column; height: 100%; padding: 24px; }
 .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; flex-shrink: 0; }
-.brand-icon { width: 34px; height: 34px; background: #1275e2; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.brand-icon { width: 34px; height: 34px; background: transparent; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
 .brand-icon .ms { font-size: 18px; color: #fff; font-variation-settings: 'FILL' 1, 'wght' 500; }
 .brand-name { font-size: 17px; font-weight: 700; line-height: 1; }
 .brand-sub { font-size: 9px; color: #a1a1aa; letter-spacing: .2em; text-transform: uppercase; margin-top: 3px; }
@@ -296,7 +301,7 @@ body.app-ready .app-shell { display: flex; }
 .msg-row.user { flex-direction: row-reverse; }
 .msg-avatar { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
 .msg-avatar.user { background: linear-gradient(135deg, #3b82f6, #4f46e5); border: 1px solid rgba(255,255,255,.18); }
-.msg-avatar.ai { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); }
+.msg-avatar.ai { background: transparent; border: none; border-radius: 8px; overflow: hidden; }
 .msg-avatar.ai .ms { font-size: 17px; color: #1275e2; font-variation-settings: 'FILL' 1; }
 .msg-body { display: flex; flex-direction: column; gap: 5px; }
 .msg-row.user .msg-body { align-items: flex-end; max-width: 660px; }
