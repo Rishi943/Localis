@@ -224,7 +224,9 @@ def get_permitted_tools(web_search_on: bool) -> list:
                 "name": "web.search",
                 "description": (
                     "Search the web for real-time information: current events, live scores, "
-                    "prices, news, weather. Do NOT use for things you can answer from knowledge."
+                    "prices, news, weather. Do NOT use for things you can answer from knowledge. "
+                    "For time-sensitive queries (upcoming events, schedules, 'next X'), always "
+                    "include today's date from the system context in your search query."
                 ),
                 "parameters": {
                     "type": "object",
@@ -350,6 +352,65 @@ def get_permitted_tools(web_search_on: bool) -> list:
     return result
 
 
+def parse_raw_tool_calls(content: str) -> list[dict] | None:
+    """
+    Fallback parser for models that output tool calls as raw text instead of
+    structured tool_calls. Handles two formats:
+
+    Format A (Qwen3 JSON):
+        <tool_call>{"name": "web.search", "arguments": {"query": "..."}}</tool_call>
+
+    Format B (function-parameter style, seen on some Qwen3.5 GGUFs):
+        <tool_call>
+        <function=web.search>
+        <parameter=query>value</parameter>
+        </function>
+        </tool_call>
+    """
+    import re as _re, json as _json
+    pattern = r"<tool_call>(.*?)</tool_call>"
+    matches = _re.findall(pattern, content, _re.DOTALL)
+    if not matches:
+        return None
+
+    tool_calls = []
+    for i, raw in enumerate(matches):
+        raw = raw.strip()
+        # --- Format A: JSON ---
+        try:
+            parsed = _json.loads(raw)
+            tool_calls.append({
+                "id": f"call_{i}",
+                "type": "function",
+                "function": {
+                    "name": parsed["name"],
+                    "arguments": _json.dumps(parsed.get("arguments", {}))
+                }
+            })
+            continue
+        except (_json.JSONDecodeError, KeyError):
+            pass
+
+        # --- Format B: <function=name><parameter=key>val</parameter></function> ---
+        fn_match = _re.search(r"<function=([^>]+)>", raw)
+        if not fn_match:
+            continue
+        func_name = fn_match.group(1).strip()
+        params = {}
+        for pm in _re.finditer(r"<parameter=([^>]+)>(.*?)</parameter>", raw, _re.DOTALL):
+            params[pm.group(1).strip()] = pm.group(2).strip()
+        tool_calls.append({
+            "id": f"call_{i}",
+            "type": "function",
+            "function": {
+                "name": func_name,
+                "arguments": _json.dumps(params)
+            }
+        })
+
+    return tool_calls if tool_calls else None
+
+
 async def execute_tool_call(
     tool_name: str,
     tool_args: dict,
@@ -367,6 +428,12 @@ async def execute_tool_call(
         # --- Web Search ---
         if tool_name == "web.search":
             query = tool_args.get("query", user_msg)
+            _time_keywords = {"next", "upcoming", "current", "latest", "today", "this week",
+                              "schedule", "when is", "when are", "now"}
+            if any(kw in query.lower() for kw in _time_keywords):
+                from datetime import datetime as _dtnow
+                _date_str = _dtnow.now().strftime("%B %d, %Y")
+                query = f"{query} {_date_str}"
             provider = web_search_provider or database.get_app_setting("web_search_provider") or "auto"
             endpoint = web_search_custom_endpoint or database.get_app_setting("web_search_custom_endpoint")
             result = await tools.tool_web_search(
@@ -814,6 +881,7 @@ class AppSettingsRequest(BaseModel):
     context_size: Optional[int] = None
     active_profile: Optional[str] = None
     custom_profile_prompt: Optional[str] = None
+    default_model: Optional[str] = None
 
 
 # ------------------------------
@@ -1264,6 +1332,29 @@ async def chat_endpoint(req: ChatRequest):
     # 0. Log User Message
     database.add_message(session_id, "user", user_msg, len(user_msg) // 3)
 
+    # Fast-path: voice-sourced HA light commands bypass LLM entirely
+    if req.input_mode == "voice":
+        from .fast_path_router import try_fast_path
+        from .assist import ha_call_service, is_ha_configured
+        fast = try_fast_path(user_msg)
+        if fast:
+            logger.info(f"[FastPath] PTT matched, firing HA")
+            reply = "Done."
+            if is_ha_configured():
+                try:
+                    # fast["endpoint"] = "/api/services/light/turn_on"
+                    parts = fast["endpoint"].strip("/").split("/")
+                    domain, service = parts[2], parts[3]
+                    await ha_call_service(domain, service, fast["payload"])
+                except Exception as e:
+                    logger.error(f"[FastPath] HA call failed: {e}")
+                    reply = "Could not reach Home Assistant."
+            database.add_message(session_id, "assistant", reply, 1)
+            async def _fp_stream():
+                yield f"data: {json.dumps({'content': reply, 'stop': False})}\n\n"
+                yield f"data: {json.dumps({'content': '', 'stop': True})}\n\n"
+            return StreamingResponse(_fp_stream(), media_type="text/event-stream")
+
     # Auto-title: only if this is a new session with the default title
     current_title = database.get_session_title(session_id)
     default_pattern = f"Session {session_id[:8]}"
@@ -1416,12 +1507,15 @@ async def chat_endpoint(req: ChatRequest):
             logger.warning(f"[RAG] Auto-inject failed: {e}")
 
     # -------------------------------------------------------
-    # 4. Think mode — Qwen3.5 native /think /no_think tokens
+    # 4. Think mode — Pass 1 always uses /no_think to avoid
+    #    interference with tool-call detection (Qwen3.5 bug).
+    #    Thinking is enabled in Pass 2 via assistant prefill.
     # -------------------------------------------------------
-    think_suffix = " /think" if req.think_mode else " /no_think"
+    # Save a clean copy of messages (before /no_think suffix) for Pass 2 thinking path
+    _messages_pre_suffix = [dict(m) for m in messages]
     for m in reversed(messages):
         if m["role"] == "user":
-            m["content"] = m["content"] + think_suffix
+            m["content"] = m["content"] + " /no_think"
             break
 
     # -------------------------------------------------------
@@ -1445,6 +1539,7 @@ async def chat_endpoint(req: ChatRequest):
     async def event_stream():
         loop = asyncio.get_running_loop()
         full_parts: List[str] = []
+        _gen_stats: dict = {}  # filled with tokens_per_second, tokens_generated before stop
 
         # Emit any Tier-A memory proposals first
         for prop in tier_a_proposals:
@@ -1453,6 +1548,7 @@ async def chat_endpoint(req: ChatRequest):
 
         # --- Pass 1: Tool Decision (non-streaming) ---
         pass1_response = None
+        _t_pass1_start = loop.time()
         try:
             with MODEL_LOCK:
                 pass1_response = current_model.create_chat_completion(
@@ -1470,12 +1566,32 @@ async def chat_endpoint(req: ChatRequest):
             yield f"data: {json.dumps({'content': f'Model error: {e}', 'stop': True})}\n\n"
             return
 
+        _t_pass1_end = loop.time()
         choice = pass1_response["choices"][0]
         finish_reason = choice.get("finish_reason")
         assistant_message = choice.get("message", {})
+        # Capture Pass 1 token stats for direct-answer path
+        _p1_usage = pass1_response.get("usage", {})
+        _p1_completion_tokens = _p1_usage.get("completion_tokens", 0)
+        _p1_elapsed = max(_t_pass1_end - _t_pass1_start, 0.001)
 
+        if req.think_mode:
+            raw_content = assistant_message.get("content") or ""
+            has_think = "<think>" in raw_content or "<thinking>" in raw_content
+            logger.debug(f"[Chat] think_mode: content_len={len(raw_content)}, has_think_tags={has_think}, finish_reason={finish_reason}")
+
+        # Resolve tool_calls: prefer structured, fallback to raw text parser
+        tool_calls = None
         if finish_reason == "tool_calls" and assistant_message.get("tool_calls"):
             tool_calls = assistant_message["tool_calls"]
+        else:
+            raw_content = assistant_message.get("content") or ""
+            tool_calls = parse_raw_tool_calls(raw_content)
+            if tool_calls:
+                finish_reason = "tool_calls"
+                logger.debug(f"[Chat] Parsed {len(tool_calls)} raw tool call(s) from content text")
+
+        if finish_reason == "tool_calls" and tool_calls:
 
             # Emit tool_start events so frontend can animate pills immediately
             for tc in tool_calls:
@@ -1507,7 +1623,11 @@ async def chat_endpoint(req: ChatRequest):
                 yield f"data: {json.dumps({'event_type': 'tool_result', 'tool': name, 'results': [{'snippet': result_str[:300]}]})}\n\n"
 
             # Build Pass 2 context: assistant tool-call turn + tool result messages
-            messages.append(assistant_message)
+            # For raw-text tool calls (fallback parser), build a proper structured message
+            if assistant_message.get("tool_calls"):
+                messages.append(assistant_message)
+            else:
+                messages.append({"role": "assistant", "content": None, "tool_calls": tool_calls})
             for tc_id, name, result_str in tool_results:
                 messages.append({
                     "role": "tool",
@@ -1515,14 +1635,37 @@ async def chat_endpoint(req: ChatRequest):
                     "content": result_str,
                 })
 
-            # --- Pass 2: Final streaming response ---
+            pass2_msgs = messages
+
+        else:
+            # No tool calls
+            if req.think_mode:
+                # Re-run as a real streaming pass on clean messages (model generates thinking naturally)
+                pass2_msgs = _messages_pre_suffix
+            else:
+                # Direct answer, no thinking — synthetic stream from Pass 1 content
+                content = assistant_message.get("content") or ""
+                chunk_size = 4
+                for i in range(0, len(content), chunk_size):
+                    chunk = content[i:i + chunk_size]
+                    full_parts.append(chunk)
+                    yield f"data: {json.dumps({'content': chunk, 'stop': False})}\n\n"
+                    await asyncio.sleep(0)  # yield to event loop so each chunk flushes
+                _gen_stats = {
+                    'tokens_per_second': round(_p1_completion_tokens / _p1_elapsed, 1),
+                    'tokens_generated': _p1_completion_tokens,
+                }
+                pass2_msgs = None  # skip Pass 2
+
+        # Run Pass 2 streaming (shared by tool-call path and think-mode direct path)
+        if pass2_msgs is not None:
             queue: asyncio.Queue = asyncio.Queue()
 
             def _gen_pass2():
                 try:
                     with MODEL_LOCK:
                         stream = current_model.create_chat_completion(
-                            messages=messages,
+                            messages=pass2_msgs,
                             max_tokens=req.max_tokens,
                             temperature=req.temperature,
                             top_p=req.top_p,
@@ -1542,6 +1685,7 @@ async def chat_endpoint(req: ChatRequest):
             t = _threading.Thread(target=_gen_pass2, daemon=True)
             t.start()
 
+            _t_p2_start = loop.time()
             while True:
                 item = await queue.get()
                 if item is None:
@@ -1551,19 +1695,23 @@ async def chat_endpoint(req: ChatRequest):
                     return
                 full_parts.append(item)
                 yield f"data: {json.dumps({'content': item, 'stop': False})}\n\n"
+            _t_p2_elapsed = max(loop.time() - _t_p2_start, 0.001)
+            _p2_tokens = sum(len(p) // 4 for p in full_parts)
+            _gen_stats = {
+                'tokens_per_second': round(_p2_tokens / _t_p2_elapsed, 1),
+                'tokens_generated': _p2_tokens,
+            }
 
-        else:
-            # Model answered directly in Pass 1 — emit as synthetic stream, no second call
-            content = assistant_message.get("content") or ""
-            chunk_size = 4
-            for i in range(0, len(content), chunk_size):
-                chunk = content[i:i + chunk_size]
-                full_parts.append(chunk)
-                yield f"data: {json.dumps({'content': chunk, 'stop': False})}\n\n"
+        # Emit stats event before stop so frontend can display tps
+        if _gen_stats:
+            yield f"data: {json.dumps({'event_type': 'stats', 'stats': _gen_stats})}\n\n"
 
         # Terminal stop event
         full_response = "".join(full_parts)
-        yield f"data: {json.dumps({'content': '', 'stop': True, 'usage': {'prompt_tokens': prompt_token_count, 'completion_tokens': len(full_response) // 4}})}\n\n"
+        if req.think_mode:
+            logger.debug(f"[Chat] think Pass2 full_response repr: {repr(full_response[:200])}")
+        completion_tokens = _gen_stats.get('tokens_generated') or len(full_response) // 4
+        yield f"data: {json.dumps({'content': '', 'stop': True, 'usage': {'prompt_tokens': prompt_token_count, 'completion_tokens': completion_tokens}})}\n\n"
 
         # Persist assistant message (non-blocking)
         await asyncio.to_thread(
@@ -2015,6 +2163,7 @@ async def get_api_settings():
         "active_profile",
         "custom_profile_prompt",
         "fin_onboarding_done",
+        "default_model",
     ]
     result = {}
     for key in keys:
@@ -2040,6 +2189,8 @@ async def post_api_settings(req: AppSettingsRequest):
         updates["active_profile"] = req.active_profile.strip()
     if req.custom_profile_prompt is not None:
         updates["custom_profile_prompt"] = req.custom_profile_prompt
+    if req.default_model is not None:
+        updates["default_model"] = req.default_model.strip()
 
     for key, value in updates.items():
         database.set_app_setting(key, value)

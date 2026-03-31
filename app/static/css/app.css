@@ -316,6 +316,21 @@ body.app-ready .app-shell { display: flex; }
 .ai-bubble { padding: 18px 22px; border-radius: 5px 20px 20px 20px; font-size: 14px; line-height: 1.7; color: rgba(255,255,255,.85); background: var(--bg-panel); backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter); border: 1px solid var(--border-subtle); box-shadow: 0 16px 40px rgba(0,0,0,.5), inset 0 1px 0 var(--border-highlight); }
 .ai-bubble p { margin-bottom: 10px; }
 .ai-bubble p:last-child { margin-bottom: 0; }
+/* Markdown typography */
+.ai-bubble h1, .ai-bubble h2, .ai-bubble h3, .ai-bubble h4 { color: #fff; font-weight: 600; margin-top: 20px; margin-bottom: 8px; line-height: 1.35; }
+.ai-bubble h1 { font-size: 18px; }
+.ai-bubble h2 { font-size: 16px; }
+.ai-bubble h3 { font-size: 14.5px; }
+.ai-bubble h4 { font-size: 13.5px; }
+.ai-bubble h1:first-child, .ai-bubble h2:first-child, .ai-bubble h3:first-child, .ai-bubble h4:first-child { margin-top: 0; }
+.ai-bubble ul, .ai-bubble ol { margin: 8px 0 12px 0; padding-left: 22px; }
+.ai-bubble li { margin-bottom: 6px; line-height: 1.65; }
+.ai-bubble li:last-child { margin-bottom: 0; }
+.ai-bubble hr { border: none; border-top: 1px solid rgba(255,255,255,.1); margin: 16px 0; }
+.ai-bubble blockquote { border-left: 3px solid rgba(18,117,226,.5); margin: 10px 0; padding: 4px 0 4px 14px; color: rgba(255,255,255,.6); }
+/* Standalone bold labels the model uses as section headers (**Title** → <p><strong>...</strong></p>) */
+.ai-bubble p:has(> strong:only-child) { margin-top: 16px; margin-bottom: 4px; color: #fff; font-size: 14.5px; }
+.ai-bubble p:first-child:has(> strong:only-child) { margin-top: 0; }
 /* AI message footer */
 .msg-footer { display: flex; align-items: center; gap: 10px; padding: 0 2px; }
 .ai-token-stat { font-size: 10px; color: rgba(255,255,255,.2); font-family: 'JetBrains Mono', monospace; }
@@ -809,6 +824,7 @@ body.app-ready #frt-overlay { display: none !important; }
     outline: none;
 }
 .settings-select:focus, .settings-input:focus { border-color: var(--accent-border); }
+.settings-select option { background: #1a1a1a; color: #ffffff; }
 .settings-color { width: 40px; height: 32px; border: 1px solid var(--card-border); border-radius: var(--r-sm); padding: 2px; background: var(--card-bg); cursor: pointer; }
 .settings-file { font-size: 12px; color: var(--text-muted); flex: 1; }
 .settings-textarea {

@@ -65,6 +65,8 @@ from typing import Optional
 import httpx
 from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
 
+from .fast_path_router import try_fast_path
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -290,6 +292,27 @@ def _submit_chat(text: str, session_id: str) -> None:
     POST to /chat and stream-drain the response.
     Runs synchronously inside the daemon thread.
     """
+    # Fast-path: intercept common HA light commands before hitting LLM
+    fast = try_fast_path(text)
+    if fast:
+        _ha_url   = os.getenv("LOCALIS_HA_URL", "")
+        _ha_token = os.getenv("LOCALIS_HA_TOKEN", "")
+        if _ha_url and _ha_token:
+            print("[FastPath] firing direct HA call")
+            try:
+                with httpx.Client(timeout=10.0) as client:
+                    client.post(
+                        f"{_ha_url}{fast['endpoint']}",
+                        headers={
+                            "Authorization": f"Bearer {_ha_token}",
+                            "Content-Type": "application/json",
+                        },
+                        json=fast["payload"],
+                    )
+            except Exception as e:
+                logger.error(f"[FastPath] HA call failed: {e}")
+        return  # skip LLM regardless
+
     url = f"{WAKEWORD_BASE_URL}/chat"
     payload = {
         "session_id": session_id,

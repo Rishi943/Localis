@@ -1639,12 +1639,12 @@ const voiceStatusBar = (() => {
 
     const STATE_MAP = {
         // wakewordUI states
-        idle:         { label: 'Say "Hey Chotu"', tag: 'wakeword',  color: null    },
-        recording:    { label: 'Hey Chotu — listening…', tag: 'triggered', color: 'amber' },
+        idle:         { label: 'Say "Hey Jarvis"', tag: 'wakeword',  color: null    },
+        recording:    { label: 'Hey Jarvis — listening…', tag: 'triggered', color: 'amber' },
         transcribing: { label: 'Transcribing…',    tag: 'stt',       color: 'amber' },
         submitting:   { label: 'Processing…',      tag: 'thinking',  color: 'amber' },
-        cooldown:     { label: 'Say "Hey Chotu"', tag: 'wakeword',  color: null    },
-        disabled:     { label: 'Say "Hey Chotu"', tag: 'wakeword',  color: null    },
+        cooldown:     { label: 'Say "Hey Jarvis"', tag: 'wakeword',  color: null    },
+        disabled:     { label: 'Say "Hey Jarvis"', tag: 'wakeword',  color: null    },
         // voiceUI states
         listening:    { label: 'Listening…',       tag: 'recording', color: 'amber' },
         confirming:   { label: 'Processing…',      tag: 'thinking',  color: 'amber' },
@@ -3165,6 +3165,7 @@ const state = {
     sidebarCollapsed: false,
     rightSidebarOpen: false,
     availableModels: [],
+    defaultModel: null,
     tutorialHistory: [],
     tutorialSystemPromptId: "default",
     tutorialSystemPromptText: TUTORIAL_PROMPT_DEFAULT,
@@ -5242,6 +5243,18 @@ document.getElementById('btn-lsb-settings')?.addEventListener('click', () => { i
             const computed = getComputedStyle(document.documentElement).getPropertyValue('--accent-primary').trim();
             if (computed) setAccent.value = computed.replace(/\s/g, '');
         }
+        // Populate model dropdown from already-loaded model list
+        const setModel = document.getElementById('set-model');
+        if (setModel && state.availableModels?.length) {
+            setModel.innerHTML = '';
+            state.availableModels.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.name;
+                opt.textContent = m.name.replace(/\.gguf$/i, '');
+                if (m.name === (state.defaultModel || state.currentModel)) opt.selected = true;
+                setModel.appendChild(opt);
+            });
+        }
     }
 
     // Close settings modal
@@ -5282,17 +5295,6 @@ document.getElementById('btn-lsb-settings')?.addEventListener('click', () => { i
         });
     }
 
-    // Populate model select from existing model list when opened
-    const setModel = document.getElementById('set-model');
-    if (setModel && window._modelsList) {
-        window._modelsList.forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = m.name;
-            opt.textContent = m.name.replace(/\.gguf$/i, '');
-            setModel.appendChild(opt);
-        });
-    }
-
     // Export openSettingsModal so other code can call it
     window.openSettingsModal = openSettingsModal;
 })();
@@ -5319,6 +5321,7 @@ async function saveSettings() {
         context_size: parseInt(document.getElementById('set-ctx')?.value || 4096),
         active_profile: state.activeProfile || 'default',
         custom_profile_prompt: PROFILE_MAP.custom?.prompt || '',
+        default_model: document.getElementById('set-model')?.value || null,
     };
     try {
         const res = await fetch('/api/settings', {
@@ -5331,6 +5334,10 @@ async function saveSettings() {
             if (payload.accent_color) {
                 document.documentElement.style.setProperty('--accent-primary', payload.accent_color);
             }
+            // Sync hidden legacy inputs so modal re-opens with saved values
+            if (els.inputs?.layers) els.inputs.layers.value = payload.gpu_layers;
+            if (els.inputs?.ctx) els.inputs.ctx.value = payload.context_size;
+            if (payload.default_model) state.defaultModel = payload.default_model;
             document.getElementById('settings-overlay')?.classList.add('hidden');
         } else {
             Logger.warn('Settings', 'Save returned non-OK status', res.status);
@@ -5357,6 +5364,9 @@ async function loadSettings() {
         }
         if (s.active_profile) setActiveProfile(s.active_profile);
         else setActiveProfile('default');
+        if (s.gpu_layers != null && els.inputs?.layers) els.inputs.layers.value = s.gpu_layers;
+        if (s.context_size != null && els.inputs?.ctx) els.inputs.ctx.value = s.context_size;
+        if (s.default_model) state.defaultModel = s.default_model;
     } catch (e) {
         // Silently skip — settings are optional
         Logger.debug('Settings', 'loadSettings failed (non-fatal)', e);
@@ -5422,7 +5432,7 @@ const updateStatus = (online, msg) => {
 
 function buildMessageHTML(role, text) {
     const isUser = role === 'user';
-    const initial = isUser ? ((window.userPreferredName)?.[0]?.toUpperCase() || 'U') : '';
+    const initial = isUser ? ((window.userPreferredName)?.[0]?.toUpperCase() || 'R') : '';
     const avatarContent = isUser ? initial : '<img src="/static/logo.svg" width="28" height="28" alt="">';
     const displayName = isUser ? (window.userPreferredName || 'You') : 'Localis';
     return `
@@ -6564,6 +6574,7 @@ const api = {
         state.isGenerating = true;
         let typeInterval = null;
         let lastStreamStats = null;
+        let streamStartTime = null;
 
         // Detect tutorial chat mode
         const isTutorialChat = document.body.classList.contains('first-run-tutorial') &&
@@ -6603,7 +6614,7 @@ const api = {
                         max_tokens: 512,
                         temperature: parseFloat(els.inputs.temp.value),
                         session_id: state.sessionId,
-                        web_search_mode: state.webSearchMode,
+                        web_search_mode: document.getElementById('pill-web')?.classList.contains('active') ? 'on' : 'off',
                         think_mode: getSessionThinkMode(state.sessionId),
                         input_mode: voiceOpts ? 'voice' : 'text'
                     })
@@ -6660,6 +6671,7 @@ const api = {
 
             await readSSE(res, (payload) => {
                 if (payload.content) {
+                    if (!streamStartTime) streamStartTime = Date.now();
                     assistantMsgContent += payload.content;
                     // Throttle updates to avoid excessive DOM reflows
                     scheduleUpdate();
@@ -6668,6 +6680,8 @@ const api = {
                 // Handle tool_start events (animate tool pills during execution)
                 if (payload.event_type === 'tool_start') {
                     const toolName = payload.tool;
+                    // Normalize dot-notation tool names to data-tool attribute names (underscore)
+                    const toolAttr = toolName.replace('.', '_');
                     const toolLabels = {
                         'web.search': 'Searching web\u2026',
                         'home.set_light': 'Controlling light\u2026',
@@ -6677,7 +6691,7 @@ const api = {
                         'memory.retrieve': 'Searching memory\u2026',
                         'memory.write': 'Saving memory\u2026',
                     };
-                    const pill = document.querySelector(`[data-tool="${toolName}"]`);
+                    const pill = document.querySelector(`[data-tool="${toolAttr}"]`);
                     if (pill) {
                         pill.classList.add('tool-pill--loading');
                         const labelEl = pill.querySelector('.tool-pill__label');
@@ -6687,18 +6701,20 @@ const api = {
                 }
                 // Handle tool_result events (emitted before LLM generation starts)
                 if (payload.event_type === 'tool_result') {
-                    const pill = document.querySelector(`[data-tool="${payload.tool}"]`);
+                    const toolName = payload.tool;
+                    const toolAttr = toolName.replace('.', '_');
+                    const pill = document.querySelector(`[data-tool="${toolAttr}"]`);
                     if (pill) pill.classList.remove('tool-pill--loading');
                     const chatHistory = document.getElementById('chat-history');
                     if (!chatHistory) return;
 
-                    if (payload.tool === 'web_search' && Array.isArray(payload.results)) {
+                    if ((toolName === 'web.search' || toolName === 'web_search') && Array.isArray(payload.results)) {
                         const count = payload.results.length;
                         chatHistory.insertAdjacentHTML('beforeend',
                             buildToolPillHTML('search', 'web.search', `${count} result${count !== 1 ? 's' : ''}`,
                                 buildSearchDetailHTML(payload.results), true)
                         );
-                    } else if (payload.tool === 'memory_write' && payload.key) {
+                    } else if ((toolName === 'memory.write' || toolName === 'memory_write') && payload.key) {
                         showToast(`Saved to memory: ${payload.key}`, 'success');
                         chatHistory.insertAdjacentHTML('beforeend',
                             buildToolPillHTML('memory', 'memory.write', `Saved: ${payload.key}`,
@@ -6707,9 +6723,18 @@ const api = {
                     }
                     return;
                 }
-                // Capture stats event
+                // Compute stats from stop event timing (backend doesn't emit a separate stats event)
+                if (payload.stop && payload.usage) {
+                    const elapsed = streamStartTime ? (Date.now() - streamStartTime) / 1000 : 0;
+                    const tokens = payload.usage.completion_tokens || 0;
+                    lastStreamStats = {
+                        tokens_per_second: elapsed > 0.1 ? tokens / elapsed : 0,
+                        tokens_generated: tokens,
+                    };
+                }
+                // Also accept explicit stats events if backend ever emits them
                 if (payload.event_type === 'stats') {
-                    lastStreamStats = payload.stats;  // May be null on error — that's fine
+                    lastStreamStats = payload.stats;
                 }
             });
 
@@ -7794,10 +7819,10 @@ const voiceUI = (() => {
                 onDone?.();
                 return;
             }
-            // Auto-stop after 5s max
+            // Auto-stop after 3s max
             setTimeout(async () => {
                 if (_state === 'listening') await _stopRecordingAndTranscribe();
-            }, 5000);
+            }, 3000);
         });
     }
 

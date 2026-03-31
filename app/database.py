@@ -268,12 +268,20 @@ def init_db():
     """)
 
     # 8. Finance Tables (Phase 2 — V2 schema with account_label)
-    # Drop and recreate fin tables on every startup to migrate V1 → V2 schema
-    c.execute("DROP TABLE IF EXISTS fin_transactions")
-    c.execute("DROP TABLE IF EXISTS fin_uploads")
-    c.execute("DROP TABLE IF EXISTS fin_goals")
-    # Reset onboarding flag so existing users re-run onboarding against V2 schema
-    set_app_setting('fin_onboarding_done', 'false')
+    # One-time migration: add V2 columns to existing V1 tables (if needed)
+    fin_version = get_app_setting('fin_schema_version')
+    if fin_version is None:
+        for stmt in [
+            "ALTER TABLE fin_transactions ADD COLUMN account_label TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE fin_transactions ADD COLUMN account_type TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE fin_uploads ADD COLUMN account_label TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE fin_uploads ADD COLUMN account_type TEXT NOT NULL DEFAULT 'chequing'",
+        ]:
+            try:
+                c.execute(stmt)
+            except Exception:
+                pass  # Column already exists or table doesn't exist yet
+        set_app_setting('fin_schema_version', '2')
 
     c.execute("""
         CREATE TABLE IF NOT EXISTS fin_uploads (

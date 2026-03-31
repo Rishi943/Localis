@@ -23,15 +23,6 @@ BATCH_SIZE = 100
 # Lower = stricter. 1.2 is a reasonable default. Range: 0.0 (exact match only) to 2.0 (everything).
 RAG_DISTANCE_THRESHOLD = 1.2
 
-# Embedder cache to avoid re-initialization
-_embedder_cache = None
-
-def _get_cached_embedder():
-    """Get embedder with module-level caching to avoid re-initialization."""
-    global _embedder_cache
-    if _embedder_cache is None:
-        _embedder_cache = memory_core.get_embedder()
-    return _embedder_cache
 # Lazy import chromadb to handle Python 3.14 compatibility issues
 chromadb = None
 Settings = None
@@ -125,7 +116,7 @@ def index_file(
             raise VectorIndexError("No chunks found in file")
 
         # Get embedder
-        embedder = _get_cached_embedder()
+        embedder = memory_core.get_embedder()
         if embedder is None:
             raise VectorIndexError("Embedder not available")
 
@@ -276,7 +267,7 @@ def query(
     """
     try:
         # Get embedder
-        embedder = _get_cached_embedder()
+        embedder = memory_core.get_embedder()
         if embedder is None:
             raise VectorIndexError("Embedder not available")
 

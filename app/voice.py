@@ -35,7 +35,7 @@ WAKEWORD_TRANSLATE: bool = os.getenv("LOCALIS_WAKEWORD_TRANSLATE", "1") == "1"
 PTT_TRANSLATE: bool = os.getenv("LOCALIS_PTT_TRANSLATE", "0") == "1"
 
 # ---------------------------------------------------------------------------
-# Independent locks — never interact with MODEL_LOCK or ASSIST_MODEL_LOCK
+# Independent locks — never interact with MODEL_LOCK
 # ---------------------------------------------------------------------------
 VOICE_STT_LOCK = threading.Lock()
 VOICE_TTS_LOCK = threading.Lock()
