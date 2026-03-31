@@ -14,7 +14,7 @@ aiofiles
 huggingface-hub
 chromadb
 
-# RAG extraction deps (needed by app/rag_processing.py)
+# RAG extraction
 pypdf
 python-docx
 
